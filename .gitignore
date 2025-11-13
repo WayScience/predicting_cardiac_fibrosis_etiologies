@@ -1,3 +1,26 @@
+###################################
+# Project-based gitignore files
+###################################
+# Ignore corrected images output folder
+corrected_images/
+
+# Ignore masks in cp_output folder
+2.extract_features/cp_output/**/*.tif*
+
+# Ignore CytoTable and CellProfiler logs
+runinfo/
+logs/
+
+# Ignore SQLite and mask outputs from CellProfiler (too large)
+2.extract_features/cp_output/
+*.sqlite
+
+# Ignore profiles in data folder (too many files)
+3.preprocessing_profiles/data/
+
+###################################
+# Python .gitignore defaults
+###################################
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

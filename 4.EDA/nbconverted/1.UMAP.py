@@ -117,6 +117,11 @@ cp_umap_with_metadata_no_qc_df = pd.concat(
 # In[6]:
 
 
+# Reorder so the orange points (failed QC) are plotted on top of blue points (passed QC)
+cp_umap_with_metadata_no_qc_df = cp_umap_with_metadata_no_qc_df.sort_values(
+    by="Metadata_QC_status", ascending=False
+)
+
 # Set the figure size
 height = 8
 width = 8
@@ -132,7 +137,7 @@ p = (
     + labs(
         color="QC Status",
     )
-    + geom_point(alpha=0.2, size=2)
+    + geom_point(alpha=0.1, size=2)
     + facet_wrap(
         "Metadata_heart_number",
         ncol=2,
@@ -245,6 +250,11 @@ cp_umap_with_metadata_qc_h2_df = cp_umap_with_metadata_qc_df[
     qc_df["Metadata_heart_number"] == 2
 ].copy()
 print(f"Filtered QC (heart 2) shape: {cp_umap_with_metadata_qc_df.shape}")
+
+# Change "None" string (not NA) treatment to "Media" for better visualization
+cp_umap_with_metadata_qc_h2_df["Metadata_treatment"] = cp_umap_with_metadata_qc_h2_df[
+    "Metadata_treatment"
+].replace("None", "Media")
 
 # Plot (colored by actin max intensity, faceted by treatment)
 width = 9

@@ -39,21 +39,6 @@ qc_fig_dir.mkdir(exist_ok=True)
 # Create an empty dictionary to store data frames for each plate
 all_qc_data_frames = {}
 
-# metadata columns to include in output data frame
-metadata_columns = [
-    "Image_Metadata_Plate",
-    "Image_Metadata_Well",
-    "Image_Metadata_Site",
-    "Metadata_Nuclei_Location_Center_X",
-    "Metadata_Nuclei_Location_Center_Y",
-    "Metadata_Cells_Location_Center_X",
-    "Metadata_Cells_Location_Center_Y",
-    "Image_FileName_Hoechst",
-    "Image_PathName_Hoechst",
-    "Image_FileName_Actin",
-    "Image_PathName_Actin",
-]
-
 
 # ## Load in plate to perform QC on
 
@@ -90,21 +75,22 @@ plate_df.head()
 # set compartment for segmentation mask
 compartment = "Nuclei"
 
+# channels to include for cytodataframe visualization
+channels = ["Hoechst", "Actin"]
+
 # metadata columns to include in output data frame
 metadata_columns = [
     "Image_Metadata_Plate",
     "Image_Metadata_Well",
     "Image_Metadata_Site",
-    f"Metadata_{compartment}_Location_Center_X",
-    f"Metadata_{compartment}_Location_Center_Y",
-    "Image_FileName_Hoechst",
-    "Image_FileName_Actin",
-    "Image_PathName_Hoechst",
-    "Image_PathName_Actin",
-    f"{compartment}_AreaShape_BoundingBoxMaximum_X",
-    f"{compartment}_AreaShape_BoundingBoxMaximum_Y",
-    f"{compartment}_AreaShape_BoundingBoxMinimum_X",
-    f"{compartment}_AreaShape_BoundingBoxMinimum_Y",
+    *[f"Metadata_{compartment}_Location_Center_{axis}" for axis in ("X", "Y")],
+    *[f"Image_FileName_{ch}" for ch in channels],
+    *[f"Image_PathName_{ch}" for ch in channels],
+    *[
+        f"{compartment}_AreaShape_BoundingBox{bound}_{axis}"
+        for bound in ("Maximum", "Minimum")
+        for axis in ("X", "Y")
+    ],
 ]
 
 
@@ -273,21 +259,22 @@ plt.show()
 # set compartment for segmentation mask
 compartment = "Cells"
 
+# channels to include for cytodataframe visualization
+channels = ["Hoechst", "Actin"]
+
 # metadata columns to include in output data frame
 metadata_columns = [
     "Image_Metadata_Plate",
     "Image_Metadata_Well",
     "Image_Metadata_Site",
-    f"Metadata_{compartment}_Location_Center_X",
-    f"Metadata_{compartment}_Location_Center_Y",
-    "Image_FileName_Hoechst",
-    "Image_FileName_Actin",
-    "Image_PathName_Hoechst",
-    "Image_PathName_Actin",
-    f"{compartment}_AreaShape_BoundingBoxMaximum_X",
-    f"{compartment}_AreaShape_BoundingBoxMaximum_Y",
-    f"{compartment}_AreaShape_BoundingBoxMinimum_X",
-    f"{compartment}_AreaShape_BoundingBoxMinimum_Y",
+    *[f"Metadata_{compartment}_Location_Center_{axis}" for axis in ("X", "Y")],
+    *[f"Image_FileName_{ch}" for ch in channels],
+    *[f"Image_PathName_{ch}" for ch in channels],
+    *[
+        f"{compartment}_AreaShape_BoundingBox{bound}_{axis}"
+        for bound in ("Maximum", "Minimum")
+        for axis in ("X", "Y")
+    ],
 ]
 
 
@@ -364,7 +351,7 @@ small_cells_outliers_cdf.sample(n=5).T
 # In[12]:
 
 
-# Set the default value to 'inlier'
+# Set default value
 plate_df["Outlier_Status"] = "Single-cell passed QC"
 
 # Mark outliers from under-segmented cells
@@ -373,9 +360,9 @@ plate_df.loc[plate_df.index.isin(combined_idx), "Outlier_Status"] = (
     "Single-cell failed QC"
 )
 
-# Create scatter plot
+# Create plot
 plt.figure(figsize=(10, 6))
-sns.histplot(
+ax = sns.histplot(
     data=plate_df,
     x="Cells_AreaShape_Area",
     hue="Outlier_Status",
@@ -386,23 +373,28 @@ sns.histplot(
     element="step",
     bins=50,
     alpha=0.5,
+    kde=True,  # adds KDE overlay
 )
 
 plt.title(f"Distribution of Cell Area for {plate}")
 plt.xlabel("Cell Area")
 plt.ylabel("Count")
+
+# Customize the Seaborn-generated legend instead of creating a new one
+ax.legend_.set_title("Outlier Status")
+ax.legend_.set_bbox_to_anchor((1.0, 1.0))
+for text in ax.legend_.get_texts():
+    text.set_fontsize(10)
+ax.legend_.get_title().set_fontsize(11)
+
 plt.tight_layout()
-
-# Show the legend
-plt.legend(loc="lower right", bbox_to_anchor=(1.0, 0), prop={"size": 10})
-
-# Save figure
 plt.savefig(pathlib.Path(f"{qc_fig_dir}/{plate}_cells_outliers.png"), dpi=500)
-
 plt.show()
 
 
 # ## Detect blurry cells
+# 
+# We decided to use texture in the nucleus (nucleus compartment) and actin (cells compartment) to identify out-of-focus cells as it is expected that the pixel intensities will be homogenous across the cell (lack of texture).
 
 # In[13]:
 

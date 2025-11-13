@@ -153,20 +153,3 @@ converted_df = pd.read_parquet(
 print(converted_df.shape)
 converted_df.head()
 
-
-# In[13]:
-
-
-col = "Metadata_ImageNumber"
-mask = converted_df[col] == 52
-
-print(f"ImageNumber 52 found: {bool(mask.any())}")
-print(f"Number of rows with ImageNumber 52: {int(mask.sum())}")
-
-if mask.any():
-    print(
-        "Wells for ImageNumber 52:",
-        converted_df.loc[mask, "Image_Metadata_Well"].unique(),
-    )
-    display(converted_df.loc[mask].head())
-

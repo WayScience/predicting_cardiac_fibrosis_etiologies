@@ -92,13 +92,14 @@ model_output_dir.mkdir(parents=True, exist_ok=True)
 # Hold out all rows where treatment is None (only applies to heart 2)
 holdout_mask = feature_selected_df["Metadata_treatment"] == "None"
 
-# Randomly hold out one well per other heart
+# Randomly hold out one well per other heart (make sampling reproducible)
 random_wells = (
     feature_selected_df[~holdout_mask]
     .groupby("Metadata_heart_number")["Metadata_Well"]
-    .apply(lambda x: x.dropna().sample(1))
+    .apply(lambda x: x.dropna().sample(1, random_state=random_state))
     .explode()
 )
+print(f"Randomly selected wells for holdout: {random_wells.tolist()}")
 
 # Combine with heart 2 / 'None' treatment rows
 holdout_idx = feature_selected_df[holdout_mask].index.union(
@@ -186,13 +187,14 @@ filtered_df.head()
 # Hold out all rows where treatment is None (only applies to heart 2)
 holdout_mask = filtered_df["Metadata_treatment"] == "None"
 
-# Randomly hold out one well per other heart
+# Randomly hold out one well per other heart (make sampling reproducible)
 random_wells = (
     filtered_df[~holdout_mask]
     .groupby("Metadata_heart_number")["Metadata_Well"]
-    .apply(lambda x: x.dropna().sample(1))
+    .apply(lambda x: x.dropna().sample(1, random_state=random_state))
     .explode()
 )
+print(f"Randomly selected wells for holdout: {random_wells.tolist()}")
 
 # Combine with heart 2 / 'None' treatment rows
 holdout_idx = filtered_df[holdout_mask].index.union(
@@ -276,13 +278,14 @@ filtered_df.head()
 # Hold out all rows where treatment is None (only applies to heart 2)
 holdout_mask = filtered_df["Metadata_treatment"] == "None"
 
-# Randomly hold out one well per other heart
+# Randomly hold out one well per other heart (make sampling reproducible)
 random_wells = (
     filtered_df[~holdout_mask]
     .groupby("Metadata_heart_number")["Metadata_Well"]
-    .apply(lambda x: x.dropna().sample(1))
+    .apply(lambda x: x.dropna().sample(1, random_state=random_state))
     .explode()
 )
+print(f"Randomly selected wells for holdout: {random_wells.tolist()}")
 
 # Combine with heart 2 / 'None' treatment rows
 holdout_idx = filtered_df[holdout_mask].index.union(

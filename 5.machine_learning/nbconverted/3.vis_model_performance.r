@@ -173,3 +173,96 @@ ggsave(file.path(output_dir, "accuracy_per_heart_by_model.png"), accuracy_barplo
 
 accuracy_barplot
 
+
+# Load in PR curve results for multi-class model
+multi_class_pr_results <- read_parquet("./performance_metrics/multi_class_pr_results.parquet")
+
+head(multi_class_pr_results)
+
+# Define mapping from integer → string
+class_label <- c("0" = "DCM", "1" = "HCM", "2" = "Healthy")
+
+# Update multi_class_pr_results if it exists
+if (exists("multi_class_pr_results") && "class_label" %in% names(multi_class_pr_results)) {
+  multi_class_pr_results$class_label <- class_label[as.character(multi_class_pr_results$class_label)]
+}
+
+# Print if the mapping was successful
+head(multi_class_pr_results)
+
+width = 14
+height = 5
+options(repr.plot.width = width, repr.plot.height = height)  # Adjust width and height as desired
+
+# Create the ggplot for PR curves
+multi_class_pr_results_plot <- ggplot(multi_class_pr_results, aes(x = recall, y = precision, color = dataset, linetype = model_type)) +
+    geom_line(linewidth = 1.15) +
+    facet_wrap(class_label ~ .) +
+    labs(
+        x = "Recall",
+        y = "Precision",
+        color = "Data Type",
+        linetype = "Model Type"
+    ) +
+    theme_bw() +
+    theme(
+        text = element_text(size = 16),  # Increase font size for all text
+        axis.title = element_text(size = 18),  # Increase font size for axis titles
+        axis.text = element_text(size = 14),  # Increase font size for axis text
+        legend.title = element_text(size = 16),  # Increase font size for legend title
+        legend.text = element_text(size = 14),  # Increase font size for legend text
+        strip.text = element_text(size = 16)  # Increase font size for facet labels
+    )
+
+# Save the plot to the output directory
+ggsave(file.path(output_dir, "pr_curves_multiclass.png"), multi_class_pr_results_plot, dpi = 500, height = height, width = width)
+
+multi_class_pr_results_plot
+
+# Load in the accuracy results for multi-class model
+multi_class_accuracy_results <- read_parquet("./performance_metrics/multi_class_heart_accuracy.parquet")
+
+# Print the first few rows of the accuracy results
+head(multi_class_accuracy_results)
+
+# For heart_number 2: label as "holdout" if DMSO treated, "holdout_media" if None treatment; otherwise keep dataset
+multi_class_accuracy_results <- multi_class_accuracy_results %>%
+    mutate(
+        dataset_modified = case_when(
+            heart_number == 2 & dataset == "holdout" & treatment == "DMSO" ~ "holdout",
+            heart_number == 2 & dataset == "holdout" & (treatment == "None" | is.na(treatment)) ~ "holdout_media",
+            TRUE ~ dataset
+        )
+    )
+
+# Plot accuracy per heart
+height <- 6
+width <- 16
+options(repr.plot.width = width, repr.plot.height = height)
+
+accuracy_barplot <- ggplot(
+    multi_class_accuracy_results,
+    aes(x = factor(heart_number), y = accuracy, fill = dataset_modified)
+) +
+    geom_col(position = "dodge") +
+    facet_wrap(model_type ~ .) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1)) +
+    labs(
+        x = "Heart Number",
+        y = "Accuracy",
+        fill = "Dataset",
+    ) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        strip.text = element_text(size = 12),
+        legend.position = "bottom"
+    )
+
+# Save plot
+ggsave(file.path(output_dir, "accuracy_per_heart_multiclass.png"), accuracy_barplot, dpi = 600, width = width, height = height)
+
+accuracy_barplot
+

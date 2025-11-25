@@ -52,7 +52,7 @@ training_indices_dir.mkdir(exist_ok=True, parents=True)
 print(f"Found {len(training_files)} training datasets.")
 
 # Dictionary to store loaded training datasets
-training_data = {}
+training_dfs = {}
 
 # Loop through and load each training dataset
 for training_file in training_files:
@@ -60,19 +60,19 @@ for training_file in training_files:
     print(f"Loading dataset: {dataset_name}")  # only print the model/folder name
 
     train_df = pd.read_parquet(training_file)
-    training_data[dataset_name] = train_df
+    training_dfs[dataset_name] = train_df
 
 
 # In[3]:
 
 
 # Loop through and downsample each loaded training dataset
-for dataset_name, train_df in training_data.items():
+for dataset_name, train_df in training_dfs.items():
     # Downsample to the smallest class
     downsample_df = downsample_data(data=train_df, label=label)
 
-    # Replace or store the downsampled dataframe
-    training_data[dataset_name] = downsample_df
+    # Replace and store the downsampled dataframe
+    training_dfs[dataset_name] = downsample_df
 
     # Export sample indices used in training to CSV
     output_file = training_indices_dir / f"{dataset_name}_training_data_indices.csv"
@@ -90,7 +90,7 @@ for dataset_name, train_df in training_data.items():
 
 # Collect all unique labels across all datasets
 all_labels = set()
-for dataset_name, train_df in training_data.items():
+for dataset_name, train_df in training_dfs.items():
     all_labels.update(train_df[label].unique())
 
 # Fit the LabelEncoder on the combined set of all labels
@@ -105,8 +105,11 @@ class_mapping = dict(zip(le.classes_, le.transform(le.classes_)))
 print("Global Class Mapping:")
 print(class_mapping)
 
+# New dictionary to hold final training data with X and y
+training_data = {}
+
 # Process each dataset to get X and y
-for dataset_name, train_df in training_data.items():
+for dataset_name, train_df in training_dfs.items():
     # Non-shuffled data
     X_train, y_train = get_X_y_data(df=train_df, label=label, shuffle=False)
     y_train_encoded = le.transform(y_train)
@@ -129,7 +132,7 @@ for dataset_name, train_df in training_data.items():
 # In[5]:
 
 
-# Set folds for k-fold cross validation (default is 5, best for low sample size)
+# Set folds for k-fold cross validation (default is )
 straified_k_folds = StratifiedKFold(n_splits=5, shuffle=False)
 
 # Set Logistic Regression model parameters (use default for max_iter)
@@ -144,11 +147,11 @@ logreg_params = {
 
 # Define the hyperparameter search space for RandomizedSearchCV
 param_dist = {
-    "C": np.logspace(-2, 1, 7),  # values from 0.01 to 10, narrow for low sample size
+    "C": np.logspace(-2, 1, 7),  # values from 0.01 to 10
     "l1_ratio": np.linspace(0, 1, 11),
 }
 
-# Set the random search hyperparameterization method parameters (used default for "cv" and "n_iter" parameter)
+# Set the random search hyperparameterization method parameters
 random_search_params = {
     "param_distributions": param_dist,
     "scoring": "f1_weighted",
@@ -157,6 +160,8 @@ random_search_params = {
     "cv": straified_k_folds,
 }
 
+
+# ## Train binary logistic regressions
 
 # In[6]:
 
@@ -211,4 +216,110 @@ for dataset_name, data_dict in training_data.items():
             )
             dump(shuffled_random_search.best_estimator_, shuffled_final_model_filename)
             print(f"Model saved as: {shuffled_final_model_filename}")
+
+
+# ## For all_hearts only model, train a multi-class logistic regression to predict the Metadata_heart_failure_type
+
+# In[7]:
+
+
+# Update label for the model
+label = "Metadata_heart_failure_type"
+
+# Load in the all hearts dataset
+all_hearts_file = training_data_path / "model_all_hearts" / "training_split.parquet"
+all_hearts_df = pd.read_parquet(all_hearts_file)
+
+# Update the Metadata_heart_failure_type for NaNs to 'Healthy'
+all_hearts_df[label] = all_hearts_df[label].fillna("Healthy")
+
+# Print shape and value counts for the updated column
+print(all_hearts_df.shape)
+print(all_hearts_df[label].value_counts())
+
+
+# In[8]:
+
+
+# Fit LabelEncoder
+le = LabelEncoder()
+le.fit(all_hearts_df[label].unique())
+dump(le, encoder_dir / "label_encoder_multi-class.joblib")
+
+# Show class mapping
+print("Multi-Class Mapping:", dict(zip(le.classes_, le.transform(le.classes_))))
+
+# Get non-shuffled data
+X_train, y_train = get_X_y_data(df=all_hearts_df, label=label, shuffle=False)
+y_train_encoded = le.transform(y_train)
+
+# Get shuffled data
+X_shuffled_train, y_shuffled_train = get_X_y_data(
+    df=all_hearts_df, label=label, shuffle=True
+)
+y_shuffled_train_encoded = le.transform(y_shuffled_train)
+
+# Store in a single dictionary
+multi_class_training_data = {
+    "X_train": X_train,
+    "y_train": y_train_encoded,
+    "X_shuffled_train": X_shuffled_train,
+    "y_shuffled_train": y_shuffled_train_encoded,
+}
+
+
+# In[9]:
+
+
+# Update just logreg_params for multi-class classification
+logreg_params.update({"multi_class": "multinomial"})
+
+# Print to confirm change
+print("Updated Logistic Regression parameters for multi-class:", logreg_params)
+
+
+# In[10]:
+
+
+# Initialize Logistic Regression and RandomizedSearchCV
+logreg = LogisticRegression(**logreg_params)
+random_search = RandomizedSearchCV(logreg, **random_search_params)
+
+# Extract data for the multi-class all_hearts model
+X_train = multi_class_training_data["X_train"]
+y_train = multi_class_training_data["y_train"]
+X_shuffled_train = multi_class_training_data["X_shuffled_train"]
+y_shuffled_train = multi_class_training_data["y_shuffled_train"]
+
+with parallel_backend("multiprocessing"):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning, module="sklearn")
+
+        ########################################################
+        # Train model on non-shuffled (final) training data
+        ########################################################
+        print("Training multi-class model for all_hearts (final)...")
+        final_random_search = clone(random_search)
+        final_random_search.fit(X_train, y_train)
+        print("Optimal parameters (final):", final_random_search.best_params_)
+
+        # Save model
+        final_model_filename = model_dir / "model_all_hearts_final_multiclass.joblib"
+        dump(final_random_search.best_estimator_, final_model_filename)
+        print(f"Model saved as: {final_model_filename}")
+
+        ########################################################
+        # Train model on shuffled training data
+        ########################################################
+        print("Training multi-class model for all_hearts (shuffled)...")
+        shuffled_random_search = clone(random_search)
+        shuffled_random_search.fit(X_shuffled_train, y_shuffled_train)
+        print("Optimal parameters (shuffled):", shuffled_random_search.best_params_)
+
+        # Save model
+        shuffled_final_model_filename = (
+            model_dir / "model_all_hearts_shuffled_multiclass.joblib"
+        )
+        dump(shuffled_random_search.best_estimator_, shuffled_final_model_filename)
+        print(f"Model saved as: {shuffled_final_model_filename}")
 

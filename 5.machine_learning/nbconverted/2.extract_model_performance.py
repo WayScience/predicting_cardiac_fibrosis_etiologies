@@ -26,7 +26,7 @@ sys.path.append("../utils")
 from training_utils import get_X_y_data
 
 
-# ## Helper function to collect precision-recall results and predicted probabilities
+# ## Helper function to collect precision-recall results and predicted probabilities for binary models only
 
 # In[2]:
 
@@ -211,9 +211,76 @@ for model_name, paths in models_dict.items():
     print()
 
 
+# In[7]:
+
+
+# Find the model key that corresponds to the "all hearts" model
+model_key = next(
+    (k for k in models_dict.keys() if "all" in k.lower() and "heart" in k.lower()),
+    None,
+)
+
+if model_key is None:
+    raise KeyError(
+        f"No model key matching 'all' and 'heart' found. Available keys: {list(models_dict.keys())}"
+    )
+
+# Load holdout dataset for that model
+holdout_path = models_dict[model_key]["holdout_data"]
+holdout_df = pd.read_parquet(holdout_path)
+
+# Filter to DMSO treatment only and drop rows missing required columns
+dmso_holdout = holdout_df.loc[
+    (holdout_df["Metadata_treatment"] == "DMSO")
+    & holdout_df["Metadata_heart_number"].notna()
+    & holdout_df["Metadata_Well"].notna()
+].copy()
+
+# Compute number of rows/cells per (heart, well)
+cells_per_well = (
+    dmso_holdout.groupby(["Metadata_heart_number", "Metadata_Well"])
+    .size()
+    .reset_index(name="n_cells")
+)
+
+# For each heart, collect sorted list of wells and corresponding counts
+wells_per_heart = (
+    cells_per_well.sort_values(["Metadata_heart_number", "Metadata_Well"])
+    .groupby("Metadata_heart_number")
+    .agg(
+        heldout_wells=("Metadata_Well", lambda s: sorted(list(s))),
+        cells_per_well_list=("n_cells", lambda s: list(s)),
+        wells_with_counts=(
+            "n_cells",
+            lambda s, idx=None: None,
+        ),  # placeholder column removed below
+    )
+    .reset_index()
+)
+
+# Replace wells_with_counts with a mapping from well -> count for clarity
+wells_per_heart = wells_per_heart.drop(columns=["wells_with_counts"])
+wells_per_heart["well_cell_counts"] = wells_per_heart["Metadata_heart_number"].map(
+    lambda h: dict(
+        cells_per_well.loc[
+            cells_per_well["Metadata_heart_number"] == h, ["Metadata_Well", "n_cells"]
+        ]
+        .set_index("Metadata_Well")["n_cells"]
+        .to_dict()
+    )
+)
+
+# Print results
+print(f"Model key: {model_key}")
+print(
+    "Held-out Metadata_Well values and cell counts per Metadata_heart_number for DMSO treatment:"
+)
+print(wells_per_heart.to_string(index=False))
+
+
 # ## Extract metrics from the data splits applied to their respective models
 
-# In[7]:
+# In[8]:
 
 
 # Initialize results list
@@ -281,4 +348,149 @@ all_models_probabilities_df.to_parquet(
 # Check output
 print(all_models_pr_results_df.shape)
 all_models_pr_results_df.head(2)
+
+
+# ## Extract performance from the multi-class model only
+
+# In[9]:
+
+
+# Load in final and shuffled model for multi-class models
+final_model = load(pathlib.Path(model_dir / "model_all_hearts_final_multiclass.joblib"))
+shuffled_model = load(
+    pathlib.Path(model_dir / "model_all_hearts_shuffled_multiclass.joblib")
+)
+
+# Set paths to data splits
+training_data_path = pathlib.Path(
+    data_dir / "model_all_hearts" / "training_split.parquet"
+).resolve(strict=True)
+testing_data_path = pathlib.Path(
+    data_dir / "model_all_hearts" / "testing_split.parquet"
+).resolve(strict=True)
+holdout_data_path = pathlib.Path(
+    data_dir / "model_all_hearts" / "holdout_split.parquet"
+).resolve(strict=True)
+
+
+# In[10]:
+
+
+# Initialize results list
+multi_class_pr_results = []
+heart_accuracy_results = []
+cell_probs_results = []
+
+# Load in label encoder for multi-class model
+label_encoder = load(pathlib.Path(encoder_dir / "label_encoder_multi-class.joblib"))
+
+# Set updated label variable
+label = "Metadata_heart_failure_type"
+
+for dataset_name, data_path in [
+    ("train", training_data_path),
+    ("test", testing_data_path),
+    ("holdout", holdout_data_path),
+]:
+    # Load dataset
+    df = pd.read_parquet(data_path)
+    df[label] = df[label].fillna("Healthy")
+
+    # Get X and y for the model
+    X, y = get_X_y_data(df=df, label=label, shuffle=False)
+    y_encoded = label_encoder.transform(y)
+
+    for model_type, model in [("final", final_model), ("shuffled", shuffled_model)]:
+        y_pred_proba = model.predict_proba(X)
+        y_pred_label = y_pred_proba.argmax(axis=1)
+
+        # --- Save predicted probabilities per cell ---
+        cell_probs_results.append(
+            pd.DataFrame(
+                {
+                    "dataset": dataset_name,
+                    "model_type": model_type,
+                    "model_name": "model_all_hearts_multiclass",
+                    "Metadata_heart_number": df["Metadata_heart_number"],
+                    "true_label": y_encoded,
+                    "predicted_label": y_pred_label,
+                    **{
+                        f"proba_class_{i}": y_pred_proba[:, i]
+                        for i in range(y_pred_proba.shape[1])
+                    },
+                }
+            )
+        )
+
+        # --- Compute PR curve per class ---
+        for class_index, class_label in enumerate(model.classes_):
+            y_true_binary = (y_encoded == class_index).astype(int)
+            y_scores = y_pred_proba[:, class_index]
+
+            precision, recall, _ = precision_recall_curve(y_true_binary, y_scores)
+
+            pr_df = pd.DataFrame(
+                {
+                    "precision": precision,
+                    "recall": recall,
+                    "model_type": model_type,
+                    "dataset": dataset_name,
+                    "model_name": "model_all_hearts_multiclass",
+                    "class_label": class_label,
+                }
+            )
+
+            multi_class_pr_results.append(pr_df)
+
+            # --- Compute per-heart × treatment accuracy ---
+            for (heart, treatment), group_df in df.groupby(
+                ["Metadata_heart_number", "Metadata_treatment"]
+            ):
+                mask = X.index.isin(group_df.index)
+                if not mask.any():
+                    continue
+
+                heart_treatment_acc = (y_pred_label[mask] == y_encoded[mask]).mean()
+                heart_accuracy_results.append(
+                    {
+                        "dataset": dataset_name,
+                        "model_type": model_type,
+                        "model_name": "model_all_hearts_multiclass",
+                        "heart_number": heart,
+                        "treatment": treatment,
+                        "accuracy": heart_treatment_acc,
+                    }
+                )
+
+            print(
+                f"model_all_hearts_multiclass | {model_type} | {dataset_name} | {class_label} → Done"
+            )
+
+# Save PR results
+pr_results_df = pd.concat(multi_class_pr_results, ignore_index=True)
+pr_results_df.to_parquet(
+    performance_metrics_dir / "multi_class_pr_results.parquet", index=False
+)
+
+# Save heart accuracy
+heart_accuracy_df = pd.DataFrame(heart_accuracy_results)
+heart_accuracy_df.to_parquet(
+    performance_metrics_dir / "multi_class_heart_accuracy.parquet", index=False
+)
+
+# Save per-cell predicted probabilities
+cell_probs_df = pd.concat(cell_probs_results, ignore_index=True)
+cell_probs_df.to_parquet(
+    performance_metrics_dir / "multi_class_cell_probabilities.parquet", index=False
+)
+
+print(
+    f"Saved PR results → {performance_metrics_dir / 'multi_class_pr_results.parquet'}"
+)
+print(
+    f"Saved heart accuracy → {performance_metrics_dir / 'multi_class_heart_accuracy.parquet'}"
+)
+print(
+    f"Saved cell probabilities → {performance_metrics_dir / 'multi_class_cell_probabilities.parquet'}"
+)
 

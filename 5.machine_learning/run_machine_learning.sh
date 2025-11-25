@@ -12,6 +12,7 @@ jupyter nbconvert --to script --output-dir=nbconverted/ *.ipynb
 python nbconverted/0.split_data.py
 python nbconverted/1.train_models.py
 python nbconverted/2.extract_model_performance.py
+python nbconverted/4.extract_model_coef.py
 
 # Activate R environment
 conda activate R_fibrosis_env

@@ -140,7 +140,9 @@ accuracy_per_heart <- probability_results %>%
         accuracy = mean(predicted_binary == actual_binary, na.rm = TRUE),
         n = n(),
         .groups = "drop"
-    )
+    ) %>%
+    # Ensure desired order for the dataset factor so bars appear in train, test, holdout, holdout_media order
+    mutate(dataset_modified = factor(dataset_modified, levels = c("train", "test", "holdout", "holdout_media")))
 
 # Plot accuracy per heart with modified dataset
 height <- 6
@@ -157,7 +159,7 @@ accuracy_barplot <- ggplot(
     labs(
         x = "Heart Number",
         y = "Accuracy",
-        fill = "Dataset",
+        fill = "Dataset"
     ) +
     theme_bw() +
     theme(
@@ -235,31 +237,35 @@ multi_class_accuracy_results <- multi_class_accuracy_results %>%
         )
     )
 
+# Ensure desired order for dataset_modified
+multi_class_accuracy_results <- multi_class_accuracy_results %>%
+    mutate(dataset_modified = factor(dataset_modified, levels = c("train", "test", "holdout", "holdout_media")))
+
 # Plot accuracy per heart
 height <- 6
 width <- 16
 options(repr.plot.width = width, repr.plot.height = height)
 
 accuracy_barplot <- ggplot(
-    multi_class_accuracy_results,
-    aes(x = factor(heart_number), y = accuracy, fill = dataset_modified)
+        multi_class_accuracy_results,
+        aes(x = factor(heart_number), y = accuracy, fill = dataset_modified)
 ) +
-    geom_col(position = "dodge") +
-    facet_wrap(model_type ~ .) +
-    scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1)) +
-    labs(
-        x = "Heart Number",
-        y = "Accuracy",
-        fill = "Dataset",
-    ) +
-    theme_bw() +
-    theme(
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-        axis.text.y = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        strip.text = element_text(size = 12),
-        legend.position = "bottom"
-    )
+        geom_col(position = "dodge") +
+        facet_wrap(model_type ~ .) +
+        scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1)) +
+        labs(
+                x = "Heart Number",
+                y = "Accuracy",
+                fill = "Dataset"
+        ) +
+        theme_bw() +
+        theme(
+                axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+                axis.text.y = element_text(size = 12),
+                axis.title = element_text(size = 14),
+                strip.text = element_text(size = 12),
+                legend.position = "bottom"
+        )
 
 # Save plot
 ggsave(file.path(output_dir, "accuracy_per_heart_multiclass.png"), accuracy_barplot, dpi = 600, width = width, height = height)

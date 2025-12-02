@@ -46,8 +46,8 @@ model_dir.mkdir(exist_ok=True, parents=True)
 encoder_dir = pathlib.Path("./encoder_results")
 encoder_dir.mkdir(exist_ok=True, parents=True)
 
-training_indices_dir = pathlib.Path("./training_indices")
-training_indices_dir.mkdir(exist_ok=True, parents=True)
+# training_indices_dir = pathlib.Path("./training_indices")
+# training_indices_dir.mkdir(exist_ok=True, parents=True)
 
 print(f"Found {len(training_files)} training datasets.")
 
@@ -74,13 +74,13 @@ for dataset_name, train_df in training_dfs.items():
     # Replace and store the downsampled dataframe
     training_dfs[dataset_name] = downsample_df
 
-    # Export sample indices used in training to CSV
-    output_file = training_indices_dir / f"{dataset_name}_training_data_indices.csv"
-    pd.DataFrame(downsample_df.index, columns=["Index"]).to_csv(
-        output_file, index=False
+    # Export as a new parquet with just the rows after downsampling per model (not indices)
+    output_file = (
+        training_data_path / dataset_name / "downsample_training_split.parquet"
     )
+    downsample_df.to_parquet(output_file, index=False)
 
-    print(f"CSV file created at {output_file} with {len(downsample_df.index)} entries.")
+    print(f"Parquet file created at {output_file} with {downsample_df.shape[0]} rows.")
     print(downsample_df.shape)
     print(downsample_df[label].value_counts())
 
@@ -111,12 +111,12 @@ training_data = {}
 # Process each dataset to get X and y
 for dataset_name, train_df in training_dfs.items():
     # Non-shuffled data
-    X_train, y_train = get_X_y_data(df=train_df, label=label, shuffle=False)
+    X_train, y_train = get_X_y_data(df=train_df, label=label, shuffle_features=False)
     y_train_encoded = le.transform(y_train)
 
     # Shuffled data
     X_shuffled_train, y_shuffled_train = get_X_y_data(
-        df=train_df, label=label, shuffle=True
+        df=train_df, label=label, shuffle_features=True
     )
     y_shuffled_train_encoded = le.transform(y_shuffled_train)
 
@@ -132,8 +132,8 @@ for dataset_name, train_df in training_dfs.items():
 # In[5]:
 
 
-# Set folds for k-fold cross validation (default is )
-straified_k_folds = StratifiedKFold(n_splits=5, shuffle=False)
+# Set folds for k-fold cross validation (default is 5, shuffle=True)
+straified_k_folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
 
 # Set Logistic Regression model parameters (use default for max_iter)
 logreg_params = {
@@ -250,12 +250,12 @@ dump(le, encoder_dir / "label_encoder_multi-class.joblib")
 print("Multi-Class Mapping:", dict(zip(le.classes_, le.transform(le.classes_))))
 
 # Get non-shuffled data
-X_train, y_train = get_X_y_data(df=all_hearts_df, label=label, shuffle=False)
+X_train, y_train = get_X_y_data(df=all_hearts_df, label=label, shuffle_features=False)
 y_train_encoded = le.transform(y_train)
 
 # Get shuffled data
 X_shuffled_train, y_shuffled_train = get_X_y_data(
-    df=all_hearts_df, label=label, shuffle=True
+    df=all_hearts_df, label=label, shuffle_features=True
 )
 y_shuffled_train_encoded = le.transform(y_shuffled_train)
 

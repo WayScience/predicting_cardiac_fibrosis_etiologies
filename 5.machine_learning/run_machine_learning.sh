@@ -15,6 +15,7 @@ python nbconverted/2.extract_model_performance.py
 python nbconverted/4.extract_model_coef.py
 
 # Activate R environment
+conda deactivate
 conda activate R_fibrosis_env
 
 # run R script for visualizing model performance

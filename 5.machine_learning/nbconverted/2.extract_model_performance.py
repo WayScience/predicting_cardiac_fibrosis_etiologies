@@ -45,24 +45,58 @@ def get_pr_curve_results(
     Returns:
         pd.DataFrame: dataframe with the PR curve results for that data and model
     """
-    # Get X and y data for the model
-    X, y = get_X_y_data(df=df, label=label, shuffle=False)
+    try:
+        # Get X and y data for the model
+        X, y = get_X_y_data(df=df, label=label, shuffle_features=False)
 
-    assert all(
-        col in model.feature_names_in_ for col in X
-    ), "Features in the model do not match the columns in the dataset"
+        assert all(
+            col in model.feature_names_in_ for col in X
+        ), "Features in the model do not match the columns in the dataset"
 
-    y_encoded = label_encoder.transform(y)
-    y_scores = model.predict_proba(X)[:, 1]
+        # Transform labels
+        y_encoded = label_encoder.transform(y)
 
-    precision, recall, _ = precision_recall_curve(y_encoded, y_scores)
+        # Ensure binary problem (this helper is for binary models only)
+        unique_labels = set(y_encoded)
+        assert (
+            len(unique_labels) == 2
+        ), f"Expected binary labels after encoding, got classes: {sorted(list(unique_labels))}"
 
-    return pd.DataFrame(
-        {
-            "precision": precision,
-            "recall": recall,
-        }
-    )
+        # Ensure model supports predict_proba and returns expected shape
+        if not hasattr(model, "predict_proba"):
+            raise AssertionError(
+                "Model does not implement predict_proba required for PR curve"
+            )
+
+        y_proba = model.predict_proba(X)
+        if (
+            not hasattr(y_proba, "shape")
+            or len(y_proba.shape) != 2
+            or y_proba.shape[1] < 2
+        ):
+            raise AssertionError(
+                f"predict_proba returned unexpected shape: {getattr(y_proba, 'shape', None)}"
+            )
+
+        y_scores = y_proba[:, 1]
+
+        assert len(y_scores) == len(
+            y_encoded
+        ), "Length mismatch between predicted scores and labels"
+
+        precision, recall, _ = precision_recall_curve(y_encoded, y_scores)
+
+        return pd.DataFrame(
+            {
+                "precision": precision,
+                "recall": recall,
+            }
+        )
+
+    except Exception as e:
+        raise AssertionError(
+            f"Failed to compute PR curve for label '{label}': {e}"
+        ) from e
 
 
 # In[3]:
@@ -82,25 +116,76 @@ def get_predicted_probabilities(
     Returns:
         pd.DataFrame: dataframe with the predicted probabilities per single-cell
     """
-    metadata_treatment = df["Metadata_treatment"].values
-    metadata_heart_number = df["Metadata_heart_number"].values
-    X, y = get_X_y_data(df=df, label=label, shuffle=False)
+    try:
+        # Validate required metadata columns exist for output
+        for col in ("Metadata_treatment", "Metadata_heart_number"):
+            assert col in df.columns, f"Required column '{col}' not found in dataframe"
 
-    assert all(
-        col in model.feature_names_in_ for col in X
-    ), "Features in the model do not match the columns in the dataset"
+        # Set treatment and heart number metadata to include in output
+        metadata_treatment = df["Metadata_treatment"].values
+        metadata_heart_number = df["Metadata_heart_number"].values
 
-    # y_encoded = label_encoder.transform(y)
-    y_scores = model.predict_proba(X)[:, 1]
+        # Get X and y for the model
+        X, y = get_X_y_data(df=df, label=label, shuffle_features=False)
 
-    return pd.DataFrame(
-        {
-            "actual_label": y,
-            "predicted_probability": y_scores,
-            "Metadata_treatment": metadata_treatment,
-            "Metadata_heart_number": metadata_heart_number,
-        }
-    )
+        # Ensure model features match dataset columns
+        assert all(
+            col in model.feature_names_in_ for col in X
+        ), "Features in the model do not match the columns in the dataset"
+
+        # Encode labels and ensure binary problem (this helper is for binary models only)
+        y_encoded = label_encoder.transform(y)
+        unique_labels = set(y_encoded)
+        assert (
+            len(unique_labels) == 2
+        ), f"Expected binary labels after encoding, got classes: {sorted(list(unique_labels))}"
+
+        # Ensure model supports predict_proba and returns expected shape
+        if not hasattr(model, "predict_proba"):
+            raise AssertionError(
+                "Model does not implement predict_proba required to get predicted probabilities"
+            )
+
+        y_proba = model.predict_proba(X)
+        if not hasattr(y_proba, "shape") or len(y_proba.shape) != 2:
+            raise AssertionError(
+                f"predict_proba returned unexpected shape: {getattr(y_proba, 'shape', None)}"
+            )
+        if y_proba.shape[1] < 2:
+            raise AssertionError(
+                f"predict_proba returned fewer than 2 class probabilities: shape {y_proba.shape}"
+            )
+        if y_proba.shape[0] != len(X):
+            raise AssertionError(
+                f"predict_proba returned {y_proba.shape[0]} rows but expected {len(X)}"
+            )
+
+        # Use probability for the positive class
+        y_scores = y_proba[:, 1]
+
+        # Consistency checks
+        assert len(y_scores) == len(
+            y_encoded
+        ), "Length mismatch between predicted probabilities and labels"
+        assert len(metadata_treatment) == len(y_scores) and len(
+            metadata_heart_number
+        ) == len(
+            y_scores
+        ), "Length mismatch between metadata columns and predicted probabilities"
+
+        return pd.DataFrame(
+            {
+                "actual_label": y,
+                "predicted_probability": y_scores,
+                "Metadata_treatment": metadata_treatment,
+                "Metadata_heart_number": metadata_heart_number,
+            }
+        )
+
+    except Exception as e:
+        raise AssertionError(
+            f"Failed to compute predicted probabilities for label '{label}': {e}"
+        ) from e
 
 
 # # Set paths
@@ -147,7 +232,7 @@ models_dict = {}
 for model in model_names:
     models_dict[model] = {
         "training_data": pathlib.Path(
-            data_dir / model / "training_split.parquet"
+            data_dir / model / "downsample_training_split.parquet"
         ).resolve(strict=True),
         "testing_data": pathlib.Path(
             data_dir / model / "testing_split.parquet"
@@ -164,17 +249,12 @@ for model in model_names:
         "encoder_result": pathlib.Path(
             encoder_dir / "label_encoder_global.joblib"
         ).resolve(strict=True),
-        "training_indices": pathlib.Path(
-            train_indices_dir / f"{model}_training_data_indices.csv"
-        ).resolve(strict=True),
     }
 
 # Print out dictionary keys and paths for verification
 for model, paths in models_dict.items():
-    print(f"Model: {model}")
-    for key, path in paths.items():
-        print(f"  {key}: {path}")
-    print()
+    lines = [f"Model: {model}"] + [f"  {key}: {path}" for key, path in paths.items()]
+    print("\n".join(lines))
 
 
 # In[6]:
@@ -183,18 +263,14 @@ for model, paths in models_dict.items():
 # For each model, print unique Metadata_heart_number per data split
 for model_name, paths in models_dict.items():
     # load datasets
-    train_df = pd.read_parquet(paths["training_data"])
+    downsample_train_df = pd.read_parquet(paths["training_data"])
     test_df = pd.read_parquet(paths["testing_data"])
     holdout_df = pd.read_parquet(paths["holdout_data"])
-
-    # filter training dataframe to the indices used for training
-    training_indices = pd.read_csv(paths["training_indices"])["Index"]
-    train_df_filtered = train_df.loc[training_indices]
 
     # collect unique heart numbers per split and print
     print(f"Model: {model_name}")
     for split_name, df in [
-        ("train", train_df_filtered),
+        ("train", downsample_train_df),
         ("test", test_df),
         ("holdout", holdout_df),
     ]:
@@ -202,13 +278,13 @@ for model_name, paths in models_dict.items():
             print(f"  {split_name}: Metadata_heart_number column not found")
             continue
         unique_hearts = pd.Series(df["Metadata_heart_number"].dropna().unique())
-        try:
-            # try to cast to int for nicer display when possible
-            unique_list = sorted(unique_hearts.astype(int).tolist())
-        except Exception:
-            unique_list = sorted(unique_hearts.tolist())
-        print(f"  {split_name} ({len(unique_list)}): {unique_list}")
-    print()
+        # Print unique heart numbers horizontally, sorted and compact
+        hearts = sorted(unique_hearts.tolist())
+        if len(hearts) == 0:
+            print(f"  {split_name} (0): None")
+        else:
+            hearts_str = ", ".join(str(h) for h in hearts)
+            print(f"  {split_name} ({len(hearts)}): {hearts_str}")
 
 
 # In[7]:
@@ -293,18 +369,14 @@ for model_name, paths in models_dict.items():
     final_model = load(paths["final_model"])
     shuffled_model = load(paths["shuffled_model"])
     label_encoder = load(paths["encoder_result"])
-    train_df = pd.read_parquet(paths["training_data"])
+    downsample_train_df = pd.read_parquet(paths["training_data"])
     test_df = pd.read_parquet(paths["testing_data"])
     holdout_df = pd.read_parquet(paths["holdout_data"])
 
     print(f"Processing model: {model_name}")
 
-    # Filter the training data to only include the indices used in training the model
-    training_indices = pd.read_csv(paths["training_indices"])["Index"]
-    train_df_filtered = train_df.loc[training_indices]
-
     # Set dictionary with the data splits
-    datasets = {"train": train_df_filtered, "test": test_df, "holdout": holdout_df}
+    datasets = {"train": downsample_train_df, "test": test_df, "holdout": holdout_df}
 
     # Loop through both datasets and models
     for dataset_name, dataset in datasets.items():
@@ -363,7 +435,9 @@ shuffled_model = load(
 
 # Set paths to data splits
 training_data_path = pathlib.Path(
-    data_dir / "model_all_hearts" / "training_split.parquet"
+    data_dir
+    / "model_all_hearts"
+    / "training_split.parquet"  # Did not downsample for the multi-class model
 ).resolve(strict=True)
 testing_data_path = pathlib.Path(
     data_dir / "model_all_hearts" / "testing_split.parquet"
@@ -397,7 +471,7 @@ for dataset_name, data_path in [
     df[label] = df[label].fillna("Healthy")
 
     # Get X and y for the model
-    X, y = get_X_y_data(df=df, label=label, shuffle=False)
+    X, y = get_X_y_data(df=df, label=label, shuffle_features=False)
     y_encoded = label_encoder.transform(y)
 
     for model_type, model in [("final", final_model), ("shuffled", shuffled_model)]:

@@ -118,6 +118,14 @@ cp_umap_with_metadata_no_qc_df = pd.concat(
 # In[6]:
 
 
+# Create a facet label that includes "Heart #"
+cp_umap_with_metadata_no_qc_df["Metadata_heart_number"] = (
+    cp_umap_with_metadata_no_qc_df["Metadata_heart_number"].astype(str)
+)
+cp_umap_with_metadata_no_qc_df["Metadata_heart_number_label"] = (
+    "Heart #" + cp_umap_with_metadata_no_qc_df["Metadata_heart_number"]
+)
+
 # Reorder so the orange points (failed QC) are plotted on top of blue points (passed QC)
 cp_umap_with_metadata_no_qc_df = cp_umap_with_metadata_no_qc_df.sort_values(
     by="Metadata_QC_status", ascending=False
@@ -140,7 +148,7 @@ p = (
     )
     + geom_point(alpha=0.1, size=2)
     + facet_wrap(
-        "Metadata_heart_number",
+        "Metadata_heart_number_label",
         ncol=2,
         scales="fixed",
     )
@@ -212,6 +220,14 @@ height = 8
 width = 8
 set_option("figure_size", (width, height))
 
+# Add "Heart #" label for facets
+cp_umap_with_metadata_qc_df["Metadata_heart_number"] = cp_umap_with_metadata_qc_df[
+    "Metadata_heart_number"
+].astype(str)
+cp_umap_with_metadata_qc_df["Metadata_heart_number_label"] = (
+    "Heart #" + cp_umap_with_metadata_qc_df["Metadata_heart_number"]
+)
+
 # Plot UMAP of QC profiles colored by actin max intensity and faceted by heart number
 p = (
     ggplot(
@@ -223,7 +239,7 @@ p = (
     )
     + geom_point(alpha=0.3, size=2)
     + facet_wrap(
-        "Metadata_heart_number",
+        "Metadata_heart_number_label",
         ncol=2,
         scales="fixed",
     )
@@ -337,7 +353,7 @@ cp_umap_with_metadata_qc_df = pd.concat(
 print(filtered_qc_df.index.equals(embeddings.index))
 
 
-# In[13]:
+# In[12]:
 
 
 # Set the figure size

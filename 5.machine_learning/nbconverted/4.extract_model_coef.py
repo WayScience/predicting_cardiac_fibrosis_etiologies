@@ -13,6 +13,10 @@
 from joblib import load
 import pathlib
 import pandas as pd
+import numpy as np
+
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 # ## Load in the models
@@ -63,8 +67,6 @@ else:
 
 # In[3]:
 
-
-import numpy as np
 
 # Dictionary to store coefficient DataFrames for later analysis
 coefficients_data = {}
@@ -184,7 +186,7 @@ print("Feature with the most negative coefficient:", min_feature)
 print("Coefficient value:", min_coefficient_value)
 
 
-# In[10]:
+# In[6]:
 
 
 all_hearts_coeffs_sorted = all_hearts_coeffs.sort_values(
@@ -193,7 +195,7 @@ all_hearts_coeffs_sorted = all_hearts_coeffs.sort_values(
 all_hearts_coeffs_sorted.head(10)
 
 
-# In[13]:
+# In[7]:
 
 
 all_hearts_coeffs_sorted = all_hearts_coeffs.sort_values(
@@ -204,14 +206,10 @@ all_hearts_coeffs_sorted.head(10)
 
 # ## Plot ranks by coefficient scatterplot per model
 
-# In[7]:
+# In[8]:
 
 
-import seaborn as sns
-
-import matplotlib.pyplot as plt
-
-sns.set(style="whitegrid")
+sns.set_theme(style="whitegrid")
 
 for name, df in coefficients_data.items():
     df_plot = df.copy()
@@ -262,14 +260,8 @@ for name, df in coefficients_data.items():
     )
     plt.tight_layout()
 
-    # out_path = coeff_dir / f"{name}_rank_scatter.png"
-    # plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    out_path = coeff_dir / f"{name}_rank_scatter.png"
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
     print(f"Saved scatterplot for model '{name}' to {out_path}")
     plt.show()
-
-
-# In[ ]:
-
-
-
 

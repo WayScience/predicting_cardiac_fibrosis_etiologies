@@ -141,28 +141,28 @@ g = sns.clustermap(
     vmax=1,  # <--- set max scale
 )
 
-g.fig.suptitle("Pearson correlation between wells", y=1.01, fontsize=16)
+g.figure.suptitle("Pearson correlation between wells", y=1.01, fontsize=16)
 
 # --- Add legends for each metadata type ---
 cell_patches = [mpatches.Patch(color=c, label=ct) for ct, c in cell_type_colors.items()]
 heart_patches = [mpatches.Patch(color=c, label=h) for h, c in heart_colors.items()]
 treat_patches = [mpatches.Patch(color=c, label=t) for t, c in treatment_colors.items()]
 
-leg1 = g.fig.legend(
+leg1 = g.figure.legend(
     handles=cell_patches,
     title="Cell type",
     loc="upper right",
     bbox_to_anchor=(1.054, 0.83),
     frameon=False,
 )
-leg2 = g.fig.legend(
+leg2 = g.figure.legend(
     handles=heart_patches,
     title="Heart\nnumber",
     loc="upper right",
     bbox_to_anchor=(1.021, 0.76),
     frameon=False,
 )
-leg3 = g.fig.legend(
+leg3 = g.figure.legend(
     handles=treat_patches,
     title="Treatment",
     loc="upper right",
@@ -180,7 +180,7 @@ cbar.set_label("Pearson Correlation", fontsize=11, fontweight="bold")
 cbar.ax.tick_params(labelsize=9)
 
 plt.savefig(
-    f"{output_dir}/well_correlation_clustermap_{plate_to_process}.png",
+    pathlib.Path(f"{output_dir}/well_correlation_clustermap_{plate_to_process}.png"),
     bbox_inches="tight",
     dpi=300,
 )
@@ -243,7 +243,7 @@ for heart_num, heart_df in aggregate_df.groupby("Metadata_heart_number"):
                 vmax=1,  # <--- set max scale
             )
 
-            g.fig.suptitle(
+            g.figure.suptitle(
                 f"Pearson correlation between wells — Heart {heart_num}, Treatment {treatment}",
                 y=1.01,
                 fontsize=16,
@@ -251,7 +251,7 @@ for heart_num, heart_df in aggregate_df.groupby("Metadata_heart_number"):
 
             # Legend for wells
             patches = [mpatches.Patch(color=c, label=w) for w, c in well_colors.items()]
-            leg = g.fig.legend(
+            leg = g.figure.legend(
                 handles=patches,
                 title="Well",
                 loc="upper right",
@@ -266,7 +266,9 @@ for heart_num, heart_df in aggregate_df.groupby("Metadata_heart_number"):
             cbar.ax.tick_params(labelsize=9)
 
             plt.savefig(
-                f"well_correlation_clustermap_{heart_num}_{treatment}_{plate_to_process}.png",
+                pathlib.Path(
+                    f"{output_dir}/well_correlation_clustermap_{heart_num}_{treatment}_{plate_to_process}.png"
+                ),
                 bbox_inches="tight",
                 dpi=300,
             )
@@ -322,14 +324,14 @@ for heart_num, heart_df in aggregate_df.groupby("Metadata_heart_number"):
             vmax=1,  # <--- set max scale
         )
 
-        g.fig.suptitle(
+        g.figure.suptitle(
             f"Pearson correlation between wells — Heart {heart_num}",
             y=1.01,
             fontsize=16,
         )
 
         patches = [mpatches.Patch(color=c, label=w) for w, c in well_colors.items()]
-        leg = g.fig.legend(
+        leg = g.figure.legend(
             handles=patches,
             title="Well",
             loc="upper right",
@@ -343,7 +345,9 @@ for heart_num, heart_df in aggregate_df.groupby("Metadata_heart_number"):
         cbar.ax.tick_params(labelsize=9)
 
         plt.savefig(
-            f"{output_dir}/well_correlation_clustermap_{heart_num}_{plate_to_process}.png",
+            pathlib.Path(
+                f"{output_dir}/well_correlation_clustermap_{heart_num}_{plate_to_process}.png"
+            ),
             bbox_inches="tight",
             dpi=300,
         )
@@ -408,7 +412,7 @@ for heart_num, heart_df in single_cell_data.groupby("Metadata_heart_number"):
                 col_cluster=False,
             )
 
-            g.fig.suptitle(
+            g.figure.suptitle(
                 f"Pearson correlation — Heart 2 — Treatment {treatment}",
                 y=1.0,
                 fontsize=16,
@@ -418,7 +422,7 @@ for heart_num, heart_df in single_cell_data.groupby("Metadata_heart_number"):
             well_patches = [
                 mpatches.Patch(color=c, label=w) for w, c in well_colors.items()
             ]
-            leg = g.fig.legend(
+            leg = g.figure.legend(
                 handles=well_patches,
                 title="Well",
                 loc="upper right",
@@ -433,7 +437,9 @@ for heart_num, heart_df in single_cell_data.groupby("Metadata_heart_number"):
             cbar.ax.tick_params(labelsize=9)
 
             plt.savefig(
-                f"{output_dir}/sc_correlation_clustermap_Heart2_{treatment}_{plate_to_process}.png",
+                pathlib.Path(
+                    f"{output_dir}/sc_correlation_clustermap_Heart2_{treatment}_{plate_to_process}.png"
+                ),
                 bbox_inches="tight",
                 dpi=300,
             )
@@ -480,13 +486,15 @@ for heart_num, heart_df in single_cell_data.groupby("Metadata_heart_number"):
             col_cluster=False,
         )
 
-        g.fig.suptitle(f"Pearson correlation — Heart {heart_num}", y=1.0, fontsize=16)
+        g.figure.suptitle(
+            f"Pearson correlation — Heart {heart_num}", y=1.0, fontsize=16
+        )
 
         # Add legend for wells
         well_patches = [
             mpatches.Patch(color=c, label=w) for w, c in well_colors.items()
         ]
-        leg = g.fig.legend(
+        leg = g.figure.legend(
             handles=well_patches,
             title="Well",
             loc="upper right",
@@ -501,7 +509,9 @@ for heart_num, heart_df in single_cell_data.groupby("Metadata_heart_number"):
         cbar.ax.tick_params(labelsize=9)
 
         plt.savefig(
-            f"{output_dir}/sc_correlation_clustermap_Heart{heart_num}_{plate_to_process}.png",
+            pathlib.Path(
+                f"{output_dir}/sc_correlation_clustermap_Heart{heart_num}_{plate_to_process}.png"
+            ),
             bbox_inches="tight",
             dpi=300,
         )

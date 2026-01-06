@@ -71,25 +71,30 @@ for (heart_num in unique(aggregate_df$Metadata_heart_number)) {
     # Separate metadata and feature columns
     metadata_cols <- names(df)[grepl('^Metadata_', names(df))]
     feature_cols <- setdiff(names(df), metadata_cols)
+    if (length(feature_cols) == 0) {
+      message(sprintf("No feature columns for Heart #%s Treatment '%s', skipping...", heart_num, treatment))
+      next
+    }
     
-    # Use all features
-    mat <- df[feature_cols]
-    mat[!is.finite(as.matrix(mat))] <- 0
-    mat_z <- scale(as.matrix(mat), center = TRUE, scale = TRUE)
-    mat_z[is.na(mat_z)] <- 0
+    # Build numeric matrix of features and handle non-finite values
+    mat_df <- df[feature_cols]
+    mat_z <- data.matrix(mat_df)             # coerces to numeric
+    mat_z[!is.finite(mat_z)] <- 0           # replace NaN/Inf with 0
     
     # Row labels are just wells
-    row_labels <- df$Metadata_Well
+    row_labels <- as.character(df$Metadata_Well)
     rownames(mat_z) <- row_labels
     
     # Row annotation for wells
-    row_ann_df <- data.frame(Well = as.character(df$Metadata_Well))
+    row_ann_df <- data.frame(Well = row_labels, stringsAsFactors = FALSE)
     rownames(row_ann_df) <- row_labels
     
     # Colors for wells
     wells <- unique(row_ann_df$Well)
     num_wells <- length(wells)
-    palette_base <- colorRampPalette(RColorBrewer::brewer.pal(min(12, max(3, num_wells)), "Set3"))(num_wells)
+    base_n <- min(12, max(3, num_wells))
+    base_pal <- RColorBrewer::brewer.pal(base_n, "Set3")
+    palette_base <- colorRampPalette(base_pal)(num_wells)
     annotation_colors <- list(Well = setNames(palette_base, wells))
     
     row_ha <- rowAnnotation(
@@ -100,12 +105,21 @@ for (heart_num in unique(aggregate_df$Metadata_heart_number)) {
     
     # Define correlation-based distance function
     dist_cor <- function(x) {
-      as.dist(1 - cor(t(x), use = "pairwise.complete.obs"))
+      cor_mat <- cor(t(x), use = "pairwise.complete.obs")
+      as.dist(1 - cor_mat)
     }
     
-    # Correlation-based clustering
-    hc_rows <- hclust(dist_cor(mat_z), method = "average")
-    hc_cols <- hclust(dist_cor(t(mat_z)), method = "average")
+    # Build hierarchical clustering if possible (need >= 2 items)
+    hc_rows <- NULL
+    hc_cols <- NULL
+    if (nrow(mat_z) >= 2) {
+      hc_rows <- tryCatch(hclust(dist_cor(mat_z), method = "average"), error = function(e) NULL)
+    }
+    if (ncol(mat_z) >= 2) {
+      hc_cols <- tryCatch(hclust(dist_cor(t(mat_z)), method = "average"), error = function(e) NULL)
+    }
+    cluster_rows_obj <- if (!is.null(hc_rows)) as.dendrogram(hc_rows) else FALSE
+    cluster_cols_obj <- if (!is.null(hc_cols)) as.dendrogram(hc_cols) else FALSE
     
     # Heatmap
     ht <- Heatmap(
@@ -113,10 +127,10 @@ for (heart_num in unique(aggregate_df$Metadata_heart_number)) {
       name = "Z-score",
       show_row_names = FALSE,
       show_column_names = FALSE,
-      cluster_rows = hc_rows,
-      cluster_columns = hc_cols,
+      cluster_rows = cluster_rows_obj,
+      cluster_columns = cluster_cols_obj,
       col = colorRamp2(
-        breaks = c(min(mat_z), 0, max(mat_z)),
+        breaks = c(min(mat_z, na.rm = TRUE), 0, max(mat_z, na.rm = TRUE)),
         colors = c("#ca0020", "white", "#0571b0")  # red → white → blue
       ),
       heatmap_legend_param = list(title = "Z-score"),
@@ -133,6 +147,7 @@ for (heart_num in unique(aggregate_df$Metadata_heart_number)) {
       output_dir,
       sprintf("heart_%s_%s_well_level_heatmap.png", heart_num, safe_treatment)
     )
+    if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
     png(output_file, width = 2800, height = 2000, res = 400)
     draw(ht + row_ha, heatmap_legend_side = "right", annotation_legend_side = "right")
     dev.off()
@@ -148,13 +163,10 @@ for (heart_num in unique(aggregate_df$Metadata_heart_number)) {
 metadata_cols <- names(aggregate_df)[grepl('^Metadata_', names(aggregate_df))]
 feature_cols <- setdiff(names(aggregate_df), metadata_cols)
 
-# Use all features
-mat <- as.data.frame(aggregate_df[feature_cols], stringsAsFactors = FALSE)
-mat[!is.finite(as.matrix(mat))] <- 0
-
-# Z-score each column (feature)
-mat_z <- scale(as.matrix(mat), center = TRUE, scale = TRUE)
-mat_z[is.na(mat_z)] <- 0
+# Use all features -> create numeric matrix from aggregate_df
+mat_df <- as.data.frame(aggregate_df[feature_cols], stringsAsFactors = FALSE)
+mat_z <- as.matrix(mat_df)                   # already z-scored, just convert to matrix
+mat_z[!is.finite(mat_z)] <- 0               # replace NaN/Inf with 0
 
 # Row labels
 row_labels <- paste0("H", aggregate_df$Metadata_heart_number, "_", seq_len(nrow(aggregate_df)))

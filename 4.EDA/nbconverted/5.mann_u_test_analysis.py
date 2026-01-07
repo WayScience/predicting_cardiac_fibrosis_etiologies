@@ -246,3 +246,95 @@ plt.savefig(
 )
 plt.show()
 
+
+# In[ ]:
+
+
+# Breakdown of significant features (p < 0.05) for Actin vs Mitochondria by Feature_Type
+sig = mw_df[mw_df["P_Value"] < 0.05].copy()
+
+# Keep only Actin and Mitochondria
+sig_am = sig[sig["Organelle"].isin(["Actin", "Mitochondria"])].copy()
+
+if sig_am.shape[0] == 0:
+    print("No significant features for Actin or Mitochondria.")
+else:
+    # Ensure Feature_Type has a value
+    sig_am["Feature_Type"] = sig_am["Feature_Type"].fillna("Unknown")
+
+    # Compute counts per organelle x feature_type
+    counts = (
+        sig_am.groupby(["Organelle", "Feature_Type"]).size().reset_index(name="Count")
+    )
+
+    # Prepare complete grid: only feature types present in at least one organelle
+    feature_types = sorted(sig_am["Feature_Type"].unique())
+    feature_types = [ft for ft in feature_types if ft not in ["AreaShape", "Neighbors"]]
+    organelles = ["Actin", "Mitochondria"]
+    rows = []
+
+    for org in organelles:
+        total = sig_am[sig_am["Organelle"] == org].shape[0]
+        for ft in feature_types:
+            mask = (counts["Organelle"] == org) & (counts["Feature_Type"] == ft)
+            c = int(counts.loc[mask, "Count"].values[0]) if mask.any() else 0
+            pct = (c / total * 100) if total > 0 else 0.0
+            rows.append(
+                {"Organelle": org, "Feature_Type": ft, "Count": c, "Percentage": pct}
+            )
+
+    df_plot = pd.DataFrame(rows)
+
+    # Remove feature types that are 0 in both organelles
+    df_plot = df_plot.groupby("Feature_Type").filter(lambda x: x["Count"].sum() > 0)
+
+    # Plot grouped bar chart: Feature_Type on x, Percentage on y, two bars per Feature_Type
+    plt.figure(figsize=(10, 6))
+    ax = sns.barplot(
+        data=df_plot,
+        x="Feature_Type",
+        y="Percentage",
+        hue="Organelle",
+        palette=palette,
+        dodge=True,
+    )
+    ax.set_ylabel("Percentage of significant features (p < 0.05)")
+    ax.set_xlabel("Feature type")
+    plt.xticks(rotation=45, ha="right")
+    plt.ylim(
+        0, df_plot["Percentage"].max() * 1.15 if df_plot["Percentage"].max() > 0 else 1
+    )
+
+    # Add value labels
+    for patch in ax.patches:
+        height = patch.get_height()
+        if height is None or height == 0:  # skip 0-height bars
+            continue
+        ax.text(
+            patch.get_x() + patch.get_width() / 2,
+            height + 0.5,
+            f"{height:.1f}%",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+
+    if ax.get_legend() is not None:
+        ax.get_legend().set_title("")
+    plt.tight_layout()
+
+    # Save and show
+    out_path = (
+        pathlib.Path(output_dir)
+        / "actin_vs_mitochondria_feature_type_percentage_significant.png"
+    )
+    plt.savefig(out_path, dpi=500)
+    plt.show()
+
+    # Print table for quick inspection
+    print(
+        df_plot.pivot(
+            index="Feature_Type", columns="Organelle", values="Percentage"
+        ).fillna(0)
+    )
+

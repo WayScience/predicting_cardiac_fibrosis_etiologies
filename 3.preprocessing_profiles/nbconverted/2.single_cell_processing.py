@@ -22,7 +22,7 @@ from pycytominer import annotate, normalize, feature_select
 
 
 # Set this flag to True for cleaned data (applied QC), or False for no QC applied
-use_cleaned_data = True
+use_cleaned_data = False
 
 # Path to directories
 converted_dir = pathlib.Path("./data/converted_profiles")
@@ -35,13 +35,6 @@ data_dir = cleaned_dir if use_cleaned_data else converted_dir
 output_dir = pathlib.Path("./data/single_cell_profiles")
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# Extract the plate names from the file name
-plate_names = [
-    file.stem.replace("_converted", "") for file in converted_dir.glob("*.parquet")
-]
-print("Plate names to process:")
-pprint.pprint(plate_names)
-
 # operations to perform for feature selection
 feature_select_ops = [
     "variance_threshold",
@@ -49,6 +42,25 @@ feature_select_ops = [
     "blocklist",
     "drop_na_columns",
 ]
+
+# Extract the plate names from the file name
+plate_names = [
+    file.stem.replace("_converted", "") for file in converted_dir.rglob("*.parquet")
+]
+
+# Pick suffix based on use_cleaned_data flag
+qc_suffix = "_QC" if use_cleaned_data else "_no_QC"
+
+# Filter out plates that already exist in output_dir (any file starting with that plate name)
+to_process = []
+for plate in plate_names:
+    pattern = f"{plate}*{qc_suffix}*.parquet"
+    processed = any(output_dir.glob(pattern))
+    if not processed:
+        to_process.append(plate)
+
+print("Plate names to process:")
+pprint.pprint(to_process)
 
 
 # ## Set dictionary with plates to process
@@ -66,7 +78,7 @@ plate_info_dictionary = {
         ),
         "platemap_path": str("../0.download_data/metadata/dmso_training_platemap.csv"),
     }
-    for name in plate_names
+    for name in to_process
 }
 
 # View the dictionary to assess that all info is added correctly

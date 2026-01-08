@@ -43,17 +43,27 @@ joins = joins.replace(
 # type of file output
 dest_datatype = "parquet"
 
-# set path to directory with SQLite files
-sqlite_dir = pathlib.Path("../2.extract_features/cp_output")
-
-# directory for processed data
-output_dir = pathlib.Path("data")
-output_dir.mkdir(parents=True, exist_ok=True)
+# Set directory if processing redo plate
+redo_plate = True
+if redo_plate:
+    # set path to directory with SQLite files
+    sqlite_dir = pathlib.Path("../2.extract_features/cp_output/Plate_2_redo")
+    # directory for processed data
+    output_dir = pathlib.Path("data/converted_profiles/Plate_2_redo")
+    output_dir.mkdir(parents=True, exist_ok=True)
+else:
+    # set path to directory with SQLite files
+    sqlite_dir = pathlib.Path("../2.extract_features/cp_output")
+    # directory for processed data
+    output_dir = pathlib.Path("data/converted_profiles")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
 plate_names = []
 
+# Select plate name folders if starts with CARD
 for file_path in sqlite_dir.iterdir():
-    plate_names.append(file_path.stem)
+    if file_path.is_dir() and file_path.name.startswith("CARD"):
+        plate_names.append(file_path.stem)
 
 # print the plate names and how many plates there are (confirmation)
 print(f"There are {len(plate_names)} plates in this dataset. Below are the names:")
@@ -67,9 +77,7 @@ for name in plate_names:
 
 
 for file_path in sqlite_dir.iterdir():
-    output_path = pathlib.Path(
-        f"{output_dir}/converted_profiles/{file_path.stem}_converted.parquet"
-    )
+    output_path = pathlib.Path(f"{output_dir}/{file_path.stem}_converted.parquet")
     print("Starting conversion with cytotable for plate:", file_path.stem)
     # Merge single cells and output as parquet file
     convert(
@@ -89,10 +97,7 @@ print("All plates have been converted with cytotable!")
 # In[4]:
 
 
-# Directory with converted profiles
-converted_dir = pathlib.Path(f"{output_dir}/converted_profiles")
-
-for file_path in converted_dir.iterdir():
+for file_path in output_dir.iterdir():
     # Load the DataFrame from the Parquet file
     df = pd.read_parquet(file_path)
 
@@ -146,10 +151,6 @@ for file_path in converted_dir.iterdir():
 # In[5]:
 
 
-converted_df = pd.read_parquet(
-    "./data/converted_profiles/CARD-CelIns-CX7_251023130003_converted.parquet"
-)
-
-print(converted_df.shape)
-converted_df.head()
+print(df.shape)
+df.head()
 

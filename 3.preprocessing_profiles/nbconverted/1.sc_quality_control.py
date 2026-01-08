@@ -25,12 +25,27 @@ from cosmicqc import find_outliers
 # In[2]:
 
 
-# Directory with data
-data_dir = pathlib.Path("./data/converted_profiles/")
+# Process redo plate or regular plates
+redo_plate = True
 
-# Directory to save cleaned data
-cleaned_dir = pathlib.Path("./data/cleaned_profiles/")
-cleaned_dir.mkdir(exist_ok=True)
+if redo_plate:
+    # Directory with data
+    data_dir = pathlib.Path("./data/converted_profiles/Plate_2_redo/")
+    # Directory to save cleaned data
+    cleaned_dir = pathlib.Path("./data/cleaned_profiles/Plate_2_redo/")
+    cleaned_dir.mkdir(exist_ok=True)
+    # Set outline context directory
+    outline_context_dir = next(
+        pathlib.Path("../2.extract_features/cp_output/Plate_2_redo/").glob("CARD*")
+    )
+else:
+    data_dir = pathlib.Path("./data/converted_profiles/")
+    cleaned_dir = pathlib.Path("./data/cleaned_profiles/")
+    cleaned_dir.mkdir(exist_ok=True)
+    # Set outline context directory
+    outline_context_dir = next(
+        pathlib.Path("../2.extract_features/cp_output/").glob("CARD*")
+    )
 
 # Directory to save qc figures
 qc_fig_dir = pathlib.Path("./qc_figures")
@@ -145,7 +160,7 @@ oversegmented_nuclei_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 oversegmented_nuclei_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(oversegmented_nuclei_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
         "center_dot": False,
@@ -185,7 +200,7 @@ poorly_segmented_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 poorly_segmented_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(poorly_segmented_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
         "center_dot": False,
@@ -212,21 +227,24 @@ poorly_segmented_outliers_cdf.sample(n=5).T
 # In[8]:
 
 
+# Copy plate_df to avoid modifying original
+plate_df_oversegmented_plot = plate_df.copy()
+
 # Set the default value to 'inlier'
-plate_df["Outlier_Status"] = "Single-cell passed QC"
+plate_df_oversegmented_plot["Outlier_Status"] = "Single-cell passed QC"
 
 # Mark outliers from both nuclei clusters and poorly segmented nuclei
 combined_idx = pd.Index(oversegmented_nuclei_outliers.index).union(
     pd.Index(poorly_segmented_outliers.index)
 )
-plate_df.loc[plate_df.index.isin(combined_idx), "Outlier_Status"] = (
-    "Single-cell failed QC"
-)
+plate_df_oversegmented_plot.loc[
+    plate_df_oversegmented_plot.index.isin(combined_idx), "Outlier_Status"
+] = "Single-cell failed QC"
 
 # Create scatter plot
 plt.figure(figsize=(10, 6))
 plot = sns.scatterplot(
-    data=plate_df,
+    data=plate_df_oversegmented_plot,
     x="Nuclei_Intensity_MassDisplacement_Hoechst",
     y="Nuclei_AreaShape_Solidity",
     hue="Outlier_Status",
@@ -326,7 +344,7 @@ small_cells_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 small_cells_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(small_cells_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
         "center_dot": False,
@@ -351,19 +369,22 @@ small_cells_outliers_cdf.sample(n=5).T
 # In[12]:
 
 
+# Copy plate_df to avoid modifying original
+plate_df_small_cells_plot = plate_df.copy()
+
 # Set default value
-plate_df["Outlier_Status"] = "Single-cell passed QC"
+plate_df_small_cells_plot["Outlier_Status"] = "Single-cell passed QC"
 
 # Mark outliers from under-segmented cells
 combined_idx = pd.Index(small_cells_outliers.index)
-plate_df.loc[plate_df.index.isin(combined_idx), "Outlier_Status"] = (
-    "Single-cell failed QC"
-)
+plate_df_small_cells_plot.loc[
+    plate_df_small_cells_plot.index.isin(combined_idx), "Outlier_Status"
+] = "Single-cell failed QC"
 
 # Create plot
 plt.figure(figsize=(10, 6))
 ax = sns.histplot(
-    data=plate_df,
+    data=plate_df_small_cells_plot,
     x="Cells_AreaShape_Area",
     hue="Outlier_Status",
     palette={
@@ -414,7 +435,7 @@ blurry_cells_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 blurry_cells_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(blurry_cells_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
         "center_dot": False,
@@ -441,19 +462,24 @@ blurry_cells_outliers_cdf.sample(n=5).T
 # In[14]:
 
 
-# Set the default value to 'inlier'
-plate_df["Outlier_Status"] = "Single-cell passed QC"
+# Copy plate_df to avoid modifying original
+plate_df_blurry_plot = plate_df.copy()
+
+# Set default value
+plate_df_blurry_plot["Outlier_Status"] = "Single-cell passed QC"
 
 # Mark outliers from under-segmented cells
 combined_idx = pd.Index(blurry_cells_outliers.index)
-plate_df.loc[plate_df.index.isin(combined_idx), "Outlier_Status"] = (
-    "Single-cell failed QC"
-)
+
+# Copy df to avoid overwriting issues
+plate_df_blurry_plot.loc[
+    plate_df_blurry_plot.index.isin(combined_idx), "Outlier_Status"
+] = "Single-cell failed QC"
 
 # Create scatter plot
 plt.figure(figsize=(10, 6))
 plot = sns.scatterplot(
-    data=plate_df,
+    data=plate_df_blurry_plot,
     x="Nuclei_Texture_InfoMeas1_Hoechst_3_02_256",
     y="Cells_Texture_InfoMeas1_Actin_3_02_256",
     hue="Outlier_Status",
@@ -464,7 +490,7 @@ plot = sns.scatterplot(
     alpha=0.6,
 )
 
-plt.title(f"CNuclei Texture vs. Cells Texture for {plate}")
+plt.title(f"Nuclei Texture vs. Cells Texture for {plate}")
 plt.xlabel("Nuclei Texture")
 plt.ylabel("Cells Texture")
 plt.tight_layout()
@@ -478,9 +504,46 @@ plt.savefig(pathlib.Path(f"{qc_fig_dir}/{plate}_blurry_outliers.png"), dpi=500)
 plt.show()
 
 
-# ## Remove all outliers and save cleaned data frame
+# ## Plot count of failed cells per x position in an image
 
 # In[15]:
+
+
+# Define number of bins (tweak this)
+num_bins = 50
+
+# Bin X locations
+plate_df_blurry_plot["X_bin"] = pd.cut(
+    plate_df_blurry_plot["Metadata_Cells_Location_Center_X"], bins=num_bins
+)
+
+# Count blurry cells per bin
+blurry_counts = (
+    plate_df_blurry_plot[
+        plate_df_blurry_plot["Outlier_Status"] == "Single-cell failed QC"
+    ]
+    .groupby("X_bin")
+    .size()
+    .reset_index(name="Blurry_Cell_Count")
+)
+
+# For plotting, use bin midpoints
+blurry_counts["X_mid"] = blurry_counts["X_bin"].apply(lambda x: x.mid)
+
+sns.lineplot(data=blurry_counts, x="X_mid", y="Blurry_Cell_Count", marker="o")
+plt.title(f"Count of blurry cells vs. binned X cell location for {plate}")
+plt.xlabel("Binned X location (midpoints)")
+plt.ylabel("Count of blurry cells")
+plt.tight_layout()
+plt.savefig(
+    pathlib.Path(f"{qc_fig_dir}/{plate}_blurry_cells_vs_xcelllocation.png"), dpi=500
+)
+plt.show()
+
+
+# ## Remove all outliers and save cleaned data frame
+
+# In[16]:
 
 
 # Collect indices from all known outlier dataframes in the notebook
@@ -531,7 +594,7 @@ print(plate_df_cleaned.shape)
 plate_df_cleaned.head()
 
 
-# In[16]:
+# In[17]:
 
 
 # Compute overall and per-well QC failure rates using outlier_indices

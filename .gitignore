@@ -21,6 +21,9 @@ logs/
 # Ignore in-progress/prototyping work
 in_progress/
 
+# Ignore papermill output
+qc_notebooks/
+
 ###################################
 # Python .gitignore defaults
 ###################################

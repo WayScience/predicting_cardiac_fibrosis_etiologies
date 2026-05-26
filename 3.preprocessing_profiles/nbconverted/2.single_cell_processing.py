@@ -18,29 +18,15 @@ from pycytominer import annotate, normalize, feature_select
 
 # ## Set paths and variables
 
-# In[2]:
+# In[3]:
 
-
-# Set this flag to True for cleaned data (applied QC), or False for no QC applied
-use_cleaned_data = True
 
 # Path to directories
-converted_dir = pathlib.Path("./data/converted_profiles")
 cleaned_dir = pathlib.Path("./data/cleaned_profiles")
-
-# Set the directory based on the flag
-data_dir = cleaned_dir if use_cleaned_data else converted_dir
 
 # output path for single-cell profiles
 output_dir = pathlib.Path("./data/single_cell_profiles")
 output_dir.mkdir(parents=True, exist_ok=True)
-
-# Extract the plate names from the file name
-plate_names = [
-    file.stem.replace("_converted", "") for file in converted_dir.glob("*.parquet")
-]
-print("Plate names to process:")
-pprint.pprint(plate_names)
 
 # operations to perform for feature selection
 feature_select_ops = [
@@ -50,23 +36,40 @@ feature_select_ops = [
     "drop_na_columns",
 ]
 
+# Extract the plate names from the file name
+plate_names = [
+    file.stem.replace("_cleaned", "") for file in cleaned_dir.rglob("*.parquet")
+]
+
+
+# Filter out plates that already exist in output_dir (any file starting with that plate name)
+to_process = []
+for plate in plate_names:
+    pattern = f"{plate}*.parquet"
+    processed = any(output_dir.glob(pattern))
+    if not processed:
+        to_process.append(plate)
+
+print("Plate names to process:")
+pprint.pprint(to_process)
+
 
 # ## Set dictionary with plates to process
 
-# In[3]:
+# In[ ]:
 
 
 # Create plate info dictionary
 plate_info_dictionary = {
     name: {
         "profile_path": str(
-            pathlib.Path(list(data_dir.rglob(f"{name}_*.parquet"))[0]).resolve(
+            pathlib.Path(list(cleaned_dir.rglob(f"{name}_*.parquet"))[0]).resolve(
                 strict=True
             )
         ),
-        "platemap_path": str("../0.download_data/metadata/dmso_training_platemap.csv"),
+        "platemap_path": pathlib.Path("../0.download_data/metadata/heart_failure_subtypes_platemap.csv").resolve(strict=True),
     }
-    for name in plate_names
+    for name in to_process
 }
 
 # View the dictionary to assess that all info is added correctly
@@ -75,24 +78,21 @@ pprint.pprint(plate_info_dictionary, indent=4)
 
 # ## Process data with pycytominer
 
-# In[4]:
+# In[ ]:
 
-
-# Determine suffix based on use_cleaned_data
-suffix = "_no_QC" if not use_cleaned_data else ""
 
 for plate, info in plate_info_dictionary.items():
     print(f"Performing pycytominer pipeline for {plate}")
 
     # Dynamically set output file names based on the suffix
     output_annotated_file = str(
-        pathlib.Path(f"{output_dir}/{plate}_sc_annotated{suffix}.parquet")
+        pathlib.Path(f"{output_dir}/{plate}_sc_annotated.parquet")
     )
     output_normalized_file = str(
-        pathlib.Path(f"{output_dir}/{plate}_sc_normalized{suffix}.parquet")
+        pathlib.Path(f"{output_dir}/{plate}_sc_normalized.parquet")
     )
     output_feature_select_file = str(
-        pathlib.Path(f"{output_dir}/{plate}_sc_feature_selected{suffix}.parquet")
+        pathlib.Path(f"{output_dir}/{plate}_sc_feature_selected.parquet")
     )
 
     profile_df = pd.read_parquet(info["profile_path"])
@@ -133,6 +133,7 @@ for plate, info in plate_info_dictionary.items():
     # Rename columns using the rename() function
     column_name_mapping = {
         "Image_Metadata_Site": "Metadata_Site",
+        "Image_Metadata_Condition": "Metadata_Condition",
     }
 
     annotated_df.rename(columns=column_name_mapping, inplace=True)

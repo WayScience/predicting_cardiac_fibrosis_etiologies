@@ -9,4 +9,5 @@ conda activate fibrosis_cp_env
 jupyter nbconvert --to script --output-dir=nbconverted/ *.ipynb
 
 # run Python script for segmentation and feature extraction
-python nbconverted/extract_features.py
+python nbconverted/0.create_loaddata_with_illum_csv.py
+python nbconverted/1.extract_features.py

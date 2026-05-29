@@ -9,4 +9,5 @@ conda activate fibrosis_cp_env
 jupyter nbconvert --to script --output-dir=nbconverted/ *.ipynb
 
 # run Python script for IC processing
-python nbconverted/illum_correct.py
+python nbconverted/0.create_loaddata_csv.py
+python nbconverted/1.illum_correct.py

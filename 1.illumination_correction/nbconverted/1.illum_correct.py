@@ -7,7 +7,7 @@
 
 # ## Import libraries
 
-# In[1]:
+# In[2]:
 
 
 import pathlib
@@ -23,62 +23,65 @@ import cp_parallel
 
 # ### Set the constants
 
-# In[2]:
+# In[3]:
 
 
 # set the run type for the parallelization
 run_name = "illum_correction"
 
-# set up the batch name for the plate(s) being processed
-batch_id = "Plate_2_redo"
-
 
 # ### Set up paths
 
-# In[3]:
+# In[5]:
 
 
 # set main output dir for all plates if it doesn't exist
-output_dir = pathlib.Path("./corrected_images")
+output_dir = pathlib.Path("./illum_directory")
 output_dir.mkdir(exist_ok=True)
 
-# make directory for batch if it doesn't exist
-(batch_output_dir := output_dir / batch_id).mkdir(exist_ok=True)
-
 # set base directory for where the images are located (WILL NEED TO CHANGE ON YOUR LOCAL MACHINE)
-base_dir = pathlib.Path("/media/18tbdrive/CFReT_screening_data/DMSO_data").resolve(
-    strict=True
-)
-
-# folder where images are located within folders
-images_dir = pathlib.Path(f"{base_dir}/{batch_id}").resolve(strict=True)
+base_dir = pathlib.Path(
+    "/home/jenna/mnt/bandicoot/CFReT_subtyping_data/images"
+).resolve(strict=True)
 
 # list for plate names based on folders to use to create dictionary
 plate_names = []
-# iterate through 0.download_data and append plate names from folder names that contain image data from that plate
-for file_path in images_dir.iterdir():
-    plate_names.append(str(file_path.stem))
 
-print("There are a total of", len(plate_names), "plates. The names of the plates are:")
+# find the plates inside each condition plate
+for parent in ["x2", "x3"]:
+    parent_dir = base_dir / parent
+
+    # Read the plate name from child folder
+    plate_names.extend(
+        [folder.name for folder in parent_dir.iterdir() if folder.is_dir()]
+    )
+
+# Sort plate names
+plate_names = sorted(plate_names)
+
+print("Found", len(plate_names), "plates:")
 for plate in plate_names:
     print(plate)
 
 
 # ## Create dictionary with all plate data to run CellProfiler in parallel
 
-# In[4]:
+# In[7]:
 
 
 # set path to the illum pipeline
 path_to_pipeline = pathlib.Path("./pipeline/illum.cppipe").resolve(strict=True)
 
+# set path to loaddata csv files
+loaddata_dir = pathlib.Path("./loaddata_csvs").resolve(strict=True)
+
 # create plate info dictionary with all parts of the CellProfiler CLI command to run in parallel
 plate_info_dictionary = {
     name: {
-        "path_to_images": pathlib.Path(list(images_dir.rglob(name))[0]).resolve(
+        "path_to_loaddata": list(loaddata_dir.rglob(f"loaddata_{name}.csv"))[0].resolve(
             strict=True
         ),
-        "path_to_output": pathlib.Path(f"{output_dir}/{batch_id}/{name}/"),
+        "path_to_output": pathlib.Path(f"{output_dir}/{name}/"),
         "path_to_pipeline": path_to_pipeline,
     }
     for name in plate_names

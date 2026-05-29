@@ -10,7 +10,9 @@
 # In[1]:
 
 
+import argparse
 import pathlib
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -20,43 +22,65 @@ from cytodataframe import CytoDataFrame
 from cosmicqc import find_outliers
 
 
-# ## Set paths and variables
+# ## Papermill parameters
 
 # In[2]:
 
 
-# Directory with data
-data_dir = pathlib.Path("./data/converted_profiles/")
+# Set default plate name (will be updated by papermill)
+plate_name = "CARD-CelIns-CX7_260407120001"
 
-# Directory to save cleaned data
+# Optional CLI fallback for direct script-style execution.
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("--plate", "--plate-name", dest="plate_name", default=plate_name)
+args, _ = parser.parse_known_args(sys.argv[1:])
+plate_name = args.plate_name
+
+
+# ## Set paths and variables
+
+# In[3]:
+
+
+# Set data directories
+data_dir = pathlib.Path("./data/converted_profiles/")
 cleaned_dir = pathlib.Path("./data/cleaned_profiles/")
 cleaned_dir.mkdir(exist_ok=True)
+# Set outline context directory
+outline_context_dir = pathlib.Path(f"../2.extract_features/cp_output/{plate_name}")
 
 # Directory to save qc figures
 qc_fig_dir = pathlib.Path("./qc_figures")
 qc_fig_dir.mkdir(exist_ok=True)
 
-# Create an empty dictionary to store data frames for each plate
-all_qc_data_frames = {}
-
 
 # ## Load in plate to perform QC on
 
-# In[3]:
+# In[4]:
 
 
-# Find the single converted parquet in the data directory and load it
-files = list(data_dir.glob("*_converted.parquet"))
-
-if len(files) == 0:
-    raise FileNotFoundError(f"No *_converted.parquet files found in {data_dir}")
-if len(files) > 1:
-    print(
-        f"More than one converted file found in {data_dir}, loading the first: {files[0].name}"
+if not plate_name:
+    available_plates = sorted(
+        path.stem.replace("_converted", "")
+        for path in data_dir.glob("*_converted.parquet")
+    )
+    raise ValueError(
+        "Set plate_name with papermill using `-p plate_name <plate>`. "
+        f"Available plates: {available_plates}"
     )
 
-file_path = files[0]
-plate = file_path.stem.replace("_converted", "")
+plate = plate_name
+file_path = data_dir / f"{plate}_converted.parquet"
+
+if not file_path.exists():
+    available_plates = sorted(
+        path.stem.replace("_converted", "")
+        for path in data_dir.glob("*_converted.parquet")
+    )
+    raise FileNotFoundError(
+        f"No converted parquet found for plate_name={plate!r}: {file_path}. "
+        f"Available plates: {available_plates}"
+    )
 
 # Load in converted plate data
 plate_df = pd.read_parquet(file_path)
@@ -69,14 +93,14 @@ print(plate_df.shape)
 plate_df.head()
 
 
-# In[4]:
+# In[5]:
 
 
 # set compartment for segmentation mask
 compartment = "Nuclei"
 
 # channels to include for cytodataframe visualization
-channels = ["Hoechst", "Actin"]
+channels = ["OrigDNA", "OrigActin"]
 
 # metadata columns to include in output data frame
 metadata_columns = [
@@ -94,7 +118,7 @@ metadata_columns = [
 ]
 
 
-# In[5]:
+# In[6]:
 
 
 # create an outline and orig mapping dictionary to map original images to outlines
@@ -118,23 +142,30 @@ for record in plate_df[
         site_fmt = f"{int(site_digits):02d}"
 
     key = rf"{compartment}Outlines_{record['Image_Metadata_Plate']}_{record['Image_Metadata_Well']}_{record['Image_Metadata_Site']}.tiff"
-    value = rf"{record['Image_Metadata_Plate']}_{record['Image_Metadata_Well']}f{site_fmt}d\d+_illumcorrect\.tiff"
+    value = rf"{record['Image_Metadata_Plate']}_{record['Image_Metadata_Well']}f{site_fmt}d\d+.TIF"
     outline_to_orig_mapping[key] = value
 # fmt: on
 
 next(iter(outline_to_orig_mapping.items()))
 
 
-# ## Oversegmented nuclei with very high intensity (clusters)
+# ## Oversegmented nuclei
 
-# In[6]:
+# In[7]:
 
 
-# find large nuclei clusters
-feature_thresholds = {
-    "Nuclei_Intensity_MassDisplacement_Hoechst": 1.0,
-    "Nuclei_AreaShape_Solidity": -0.8,
-}
+if plate_name == "CARD-CelIns-CX7_260407120001":
+    # find large nuclei clusters
+    feature_thresholds = {
+        "Nuclei_Intensity_MassDisplacement_DNA": 2.0,
+        "Nuclei_AreaShape_Compactness": 2.0,
+    }
+else:
+    # find large nuclei clusters
+    feature_thresholds = {
+        "Nuclei_Intensity_MassDisplacement_DNA": 1.0,
+        "Nuclei_AreaShape_Compactness": 1.0,
+    }
 
 oversegmented_nuclei_outliers = find_outliers(
     df=plate_df,
@@ -145,7 +176,7 @@ oversegmented_nuclei_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 oversegmented_nuclei_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(oversegmented_nuclei_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
         "center_dot": False,
@@ -154,9 +185,9 @@ oversegmented_nuclei_outliers_cdf = CytoDataFrame(
     },
 )[
     [
-        "Nuclei_Intensity_MassDisplacement_Hoechst",
-        "Nuclei_AreaShape_Solidity",
-        "Image_FileName_Hoechst",
+        "Nuclei_Intensity_MassDisplacement_DNA",
+        "Nuclei_AreaShape_Compactness",
+        "Image_FileName_OrigDNA",
     ]
 ]
 
@@ -168,12 +199,12 @@ print(oversegmented_nuclei_outliers_cdf.shape)
 oversegmented_nuclei_outliers_cdf.sample(n=5).T
 
 
-# In[7]:
+# In[8]:
 
 
 # find non-round nuclei (poorly segmented)
 feature_thresholds = {
-    "Nuclei_AreaShape_Solidity": -2.2,
+    "Nuclei_AreaShape_Solidity": -2.0,
 }
 
 poorly_segmented_outliers = find_outliers(
@@ -185,7 +216,7 @@ poorly_segmented_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 poorly_segmented_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(poorly_segmented_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
         "center_dot": False,
@@ -195,21 +226,18 @@ poorly_segmented_outliers_cdf = CytoDataFrame(
 )[
     [
         "Nuclei_AreaShape_Solidity",
-        "Image_FileName_Hoechst",
+        "Image_FileName_OrigDNA",
     ]
 ]
 
 
 print(poorly_segmented_outliers_cdf.shape)
-# large_nuclei_high_int_outliers_cdf.sort_values(
-#     by="Nuclei_Intensity_MassDisplacement_Hoechst", ascending=True
-# ).head(5).T
 poorly_segmented_outliers_cdf.sample(n=5).T
 
 
-# ### Scatterplot of mass displacement to solidity
+# ### Scatterplot of mass displacement to compactness
 
-# In[8]:
+# In[9]:
 
 
 # Set the default value to 'inlier'
@@ -227,8 +255,8 @@ plate_df.loc[plate_df.index.isin(combined_idx), "Outlier_Status"] = (
 plt.figure(figsize=(10, 6))
 plot = sns.scatterplot(
     data=plate_df,
-    x="Nuclei_Intensity_MassDisplacement_Hoechst",
-    y="Nuclei_AreaShape_Solidity",
+    x="Nuclei_Intensity_MassDisplacement_DNA",
+    y="Nuclei_AreaShape_Compactness",
     hue="Outlier_Status",
     palette={
         "Single-cell passed QC": "#006400",
@@ -237,9 +265,9 @@ plot = sns.scatterplot(
     alpha=0.6,
 )
 
-plt.title(f"Nuclei Solidity vs. Nuclei Mass Displacement for {plate}")
+plt.title(f"Nuclei Compactness vs. Nuclei Mass Displacement for {plate}")
 plt.xlabel("Nuclei Mass Displacement")
-plt.ylabel("Nuclei Solidity")
+plt.ylabel("Nuclei Compactness")
 plt.tight_layout()
 
 # Show the legend
@@ -253,14 +281,14 @@ plt.show()
 
 # ## Mis-segmented cells due to high confluence (segmentation for cells around the nuclei)
 
-# In[9]:
+# In[10]:
 
 
 # set compartment for segmentation mask
 compartment = "Cells"
 
 # channels to include for cytodataframe visualization
-channels = ["Hoechst", "Actin"]
+channels = ["OrigDNA", "OrigActin"]
 
 # metadata columns to include in output data frame
 metadata_columns = [
@@ -278,7 +306,7 @@ metadata_columns = [
 ]
 
 
-# In[10]:
+# In[11]:
 
 
 # create an outline and orig mapping dictionary to map original images to outlines
@@ -302,19 +330,19 @@ for record in plate_df[
         site_fmt = f"{int(site_digits):02d}"
 
     key = rf"{compartment}Outlines_{record['Image_Metadata_Plate']}_{record['Image_Metadata_Well']}_{record['Image_Metadata_Site']}.tiff"
-    value = rf"{record['Image_Metadata_Plate']}_{record['Image_Metadata_Well']}f{site_fmt}d\d+_illumcorrect\.tiff"
+    value = rf"{record['Image_Metadata_Plate']}_{record['Image_Metadata_Well']}f{site_fmt}d\d+.TIF"
     outline_to_orig_mapping[key] = value
 # fmt: on
 
 next(iter(outline_to_orig_mapping.items()))
 
 
-# In[11]:
+# In[12]:
 
 
 # find under-segmented cells (small cells)
 feature_thresholds = {
-    "Cells_AreaShape_Area": -1.5,
+    "Cells_AreaShape_Area": -1.0,
 }
 
 small_cells_outliers = find_outliers(
@@ -326,7 +354,7 @@ small_cells_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 small_cells_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(small_cells_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
         "center_dot": False,
@@ -336,19 +364,16 @@ small_cells_outliers_cdf = CytoDataFrame(
 )[
     [
         "Cells_AreaShape_Area",
-        "Image_FileName_Actin",
+        "Image_FileName_OrigActin",
     ]
 ]
 
 
 print(small_cells_outliers_cdf.shape)
-# large_nuclei_high_int_outliers_cdf.sort_values(
-#     by="Nuclei_Intensity_MassDisplacement_Hoechst", ascending=True
-# ).head(5).T
 small_cells_outliers_cdf.sample(n=5).T
 
 
-# In[12]:
+# In[13]:
 
 
 # Set default value
@@ -396,12 +421,12 @@ plt.show()
 # 
 # We decided to use texture in the nucleus (nucleus compartment) and actin (cells compartment) to identify out-of-focus cells as it is expected that the pixel intensities will be homogenous across the cell (lack of texture).
 
-# In[13]:
+# In[14]:
 
 
 # find blurry cells
 feature_thresholds = {
-    "Nuclei_Texture_InfoMeas1_Hoechst_3_02_256": -1.5,
+    "Nuclei_Texture_InfoMeas1_DNA_3_02_256": -1.5,
     "Cells_Texture_InfoMeas1_Actin_3_02_256": -1.0,
 }
 
@@ -414,31 +439,31 @@ blurry_cells_outliers = find_outliers(
 # MUST SET DATA AS DATAFRAME FOR OUTLINE DIR TO WORK
 blurry_cells_outliers_cdf = CytoDataFrame(
     data=pd.DataFrame(blurry_cells_outliers),
-    data_outline_context_dir="../2.extract_features/cp_output/CARD-CelIns-CX7_251023130003",
+    data_outline_context_dir=outline_context_dir,
     segmentation_file_regex=outline_to_orig_mapping,
     display_options={
-        "center_dot": False,
+        "center_dot": True,
         "brightness": 5,
     },
 )[
     [
         "Image_Metadata_Well",
         "Image_Metadata_Site",
-        "Nuclei_Texture_InfoMeas1_Hoechst_3_02_256",
+        "Nuclei_Texture_InfoMeas1_DNA_3_02_256",
         "Cells_Texture_InfoMeas1_Actin_3_02_256",
-        "Image_FileName_Actin",
+        "Image_FileName_OrigActin",
     ]
 ]
 
 
 print(blurry_cells_outliers_cdf.shape)
 # blurry_cells_outliers_cdf.sort_values(
-#     by="Nuclei_Texture_InfoMeas1_Hoechst_3_02_256", ascending=False
+#     by="Nuclei_Texture_InfoMeas1_DNA_3_02_256", ascending=False
 # ).head(10)
 blurry_cells_outliers_cdf.sample(n=5).T
 
 
-# In[14]:
+# In[15]:
 
 
 # Set the default value to 'inlier'
@@ -454,7 +479,7 @@ plate_df.loc[plate_df.index.isin(combined_idx), "Outlier_Status"] = (
 plt.figure(figsize=(10, 6))
 plot = sns.scatterplot(
     data=plate_df,
-    x="Nuclei_Texture_InfoMeas1_Hoechst_3_02_256",
+    x="Nuclei_Texture_InfoMeas1_DNA_3_02_256",
     y="Cells_Texture_InfoMeas1_Actin_3_02_256",
     hue="Outlier_Status",
     palette={
@@ -464,7 +489,7 @@ plot = sns.scatterplot(
     alpha=0.6,
 )
 
-plt.title(f"CNuclei Texture vs. Cells Texture for {plate}")
+plt.title(f"Nuclei Texture vs. Cells Texture for {plate}")
 plt.xlabel("Nuclei Texture")
 plt.ylabel("Cells Texture")
 plt.tight_layout()
@@ -480,12 +505,11 @@ plt.show()
 
 # ## Remove all outliers and save cleaned data frame
 
-# In[15]:
+# In[16]:
 
 
 # Collect indices from all known outlier dataframes in the notebook
 outlier_names = [
-    "large_nuclei_high_int_outliers",
     "oversegmented_nuclei_outliers",
     "poorly_segmented_outliers",
     "small_cells_outliers",
@@ -523,15 +547,19 @@ print(
 plate_df_cleaned = plate_df.drop(outlier_indices)
 
 # Save cleaned data for this plate
-plate_name = plate_df["Image_Metadata_Plate"].iloc[0]
-plate_df_cleaned.to_parquet(f"{cleaned_dir}/{plate_name}_cleaned.parquet")
+metadata_plate = plate_df["Image_Metadata_Plate"].iloc[0]
+if metadata_plate != plate:
+    raise ValueError(
+        f"Loaded plate metadata ({metadata_plate}) does not match requested plate ({plate})."
+    )
+plate_df_cleaned.to_parquet(f"{cleaned_dir}/{plate}_cleaned.parquet")
 
 # Verify the result
 print(plate_df_cleaned.shape)
 plate_df_cleaned.head()
 
 
-# In[16]:
+# In[17]:
 
 
 # Compute overall and per-well QC failure rates using outlier_indices
@@ -541,7 +569,7 @@ if "plate_df" not in globals():
     )
 if "outlier_indices" not in globals():
     raise NameError(
-        "outlier_indices not found. Run the cell that collects outlier indices (cell 22)."
+        "outlier_indices not found. Run the cell that collects outlier indices."
     )
 
 df_all = plate_df

@@ -31,23 +31,15 @@ path_to_pipeline = pathlib.Path("./pipeline/analysis.cppipe").resolve(strict=Tru
 output_dir = pathlib.Path("./cp_output/")
 output_dir.mkdir(exist_ok=True)
 
-# batch ID for this run
-batch_id = "Plate_2_redo"
-
-# Make output directory for this batch if it doesn't already exist
-(batch_output_dir := output_dir / batch_id).mkdir(exist_ok=True)
-
-# Directory where all images are separated by folder per plate
-images_dir = pathlib.Path(
-    f"../1.illumination_correction/corrected_images/{batch_id}/"
-).resolve(strict=True)
+# Directory with Loadata CSVs with paths to illumination corrected images
+loaddata_dir = pathlib.Path("./loaddata_csvs").resolve(strict=True)
 
 # list for plate names based on folders to use to create dictionary
 plate_names = []
 
-# iterate through 0.download_data and append plate names from folder names that contain image data from that plate
-for file_path in images_dir.iterdir():
-    plate_names.append(str(file_path.stem))
+# use the plate name from loaddata csvs to create dictionary for parallelization
+for file_path in loaddata_dir.iterdir():
+    plate_names.append(str(file_path.stem.split("loaddata_with_illum_")[1]))
 
 print("There are a total of", len(plate_names), "plates. The names of the plates are:")
 for plate in plate_names:
@@ -62,10 +54,10 @@ for plate in plate_names:
 # create plate info dictionary with all parts of the CellProfiler CLI command to run in parallel
 plate_info_dictionary = {
     name: {
-        "path_to_images": pathlib.Path(list(images_dir.rglob(name))[0]).resolve(
-            strict=True
-        ),
-        "path_to_output": pathlib.Path(f"{output_dir}/{batch_id}/{name}/"),
+        "path_to_loaddata": pathlib.Path(
+            list(loaddata_dir.rglob(f"loaddata_with_illum_{name}.csv"))[0]
+        ).resolve(strict=True),
+        "path_to_output": pathlib.Path(f"{output_dir}/{name}/"),
         "path_to_pipeline": path_to_pipeline,
     }
     for name in plate_names

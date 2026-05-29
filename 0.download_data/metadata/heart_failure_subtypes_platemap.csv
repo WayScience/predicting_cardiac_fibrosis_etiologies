@@ -4,10 +4,10 @@ B,3,B03,50,None,Failing,DCM
 B,4,B04,38,None,Healthy,NA
 B,5,B05,23,None,Failing,DCM
 B,6,B06,B,None,Failing,HLHS
-B,7,B07,51,None,Failing,HCM
+B,7,B07,51,None,Failing,ICM
 B,8,B08,C,None,Failing,HLHS
 B,9,B09,2,None,Healthy,NA
-B,10,B10,44,None,Failing,HCM
+B,10,B10,44,None,Failing,ICM
 B,11,B11,38,None,Healthy,NA
 C,2,C02,A,None,Failing,HLHS
 C,3,C03,23,None,Failing,DCM

@@ -18,7 +18,7 @@ from pycytominer import annotate, normalize, feature_select
 
 # ## Set paths and variables
 
-# In[3]:
+# In[2]:
 
 
 # Path to directories
@@ -56,7 +56,7 @@ pprint.pprint(to_process)
 
 # ## Set dictionary with plates to process
 
-# In[ ]:
+# In[3]:
 
 
 # Create plate info dictionary
@@ -67,7 +67,9 @@ plate_info_dictionary = {
                 strict=True
             )
         ),
-        "platemap_path": pathlib.Path("../0.download_data/metadata/heart_failure_subtypes_platemap.csv").resolve(strict=True),
+        "platemap_path": pathlib.Path(
+            "../0.download_data/metadata/heart_failure_subtypes_platemap.csv"
+        ).resolve(strict=True),
     }
     for name in to_process
 }
@@ -78,7 +80,7 @@ pprint.pprint(plate_info_dictionary, indent=4)
 
 # ## Process data with pycytominer
 
-# In[ ]:
+# In[4]:
 
 
 for plate, info in plate_info_dictionary.items():
@@ -147,7 +149,7 @@ for plate, info in plate_info_dictionary.items():
     annotated_df.to_parquet(output_annotated_file, index=False)
 
     # Normalize to the None treatments
-    samples = "Metadata_heart_number == 2 and Metadata_treatment == 'None'"
+    samples = "all"
 
     print(
         "Performing normalization for", plate, "using this samples parameter:", samples
@@ -156,7 +158,7 @@ for plate, info in plate_info_dictionary.items():
     # Step 2: Normalization
     normalized_df = normalize(
         profiles=output_annotated_file,
-        method="standardize",
+        method="mad_robustize",
         output_file=output_normalized_file,
         output_type="parquet",
         samples=samples,

@@ -174,12 +174,13 @@ for plate, info in plate_info_dictionary.items():
         output_type="parquet",
     )
 
-    # Load back in the feature selected data to drop specific features that leaked in (Costes and Location features)
+    # Load back in the feature selected data to drop specific features that leaked in
     feature_selected_df = pd.read_parquet(output_feature_select_file)
     cols_to_drop = [
         col
         for col in feature_selected_df.columns
-        if ("Costes" in col or "Location" in col) and not col.startswith("Metadata_")
+        if ("Costes" in col or "Location" in col or "Manders" in col or "RWC " in col)
+        and not col.startswith("Metadata_")
     ]
     feature_selected_df.drop(columns=cols_to_drop, inplace=True)
     feature_selected_df.to_parquet(output_feature_select_file, index=False)

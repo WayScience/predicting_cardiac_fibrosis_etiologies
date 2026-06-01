@@ -55,7 +55,7 @@ G,4,G04,51,None,Failing,ICM
 G,5,G05,A,None,Failing,HLHS
 G,6,G06,23,None,Failing,DCM
 G,7,G07,7,None,Healthy,NA
-G,8,G08,C,None,Failing,DCM
+G,8,G08,C,None,Failing,HLHS
 G,9,G09,50,None,Failing,DCM
 G,10,G10,36,None,Failing,DCM
 G,11,G11,38,None,Healthy,NA

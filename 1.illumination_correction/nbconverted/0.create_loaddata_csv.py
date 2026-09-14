@@ -15,16 +15,17 @@
 # | d3 | OrigER |
 # | d4 | OrigDNA |
 # 
+# > NOTE: If running dataset with HLHS hearts (known as `hlhs_run` or `hlhs`), then there is metadata associated to the media "conditions" in the plate paths that can be added as metadata. Subsequent plates do not have this thus do not need this metadata column included.
+# 
 
-# In[1]:
+# In[ ]:
 
 
-from pathlib import Path
 import re
+import sys
+from pathlib import Path
 
 import pandas as pd
-
-import sys
 
 sys.path.append("../utils")
 import loaddata_csv

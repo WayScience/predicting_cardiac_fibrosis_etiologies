@@ -20,11 +20,12 @@ import pandas as pd
 import seaborn as sns
 from cosmicqc import find_outliers
 from cytodataframe import CytoDataFrame
+from IPython.display import display
 
 
 # ## Papermill parameters
 
-# In[ ]:
+# In[2]:
 
 
 # Set default plate name (will be updated by papermill)
@@ -43,7 +44,7 @@ hlhs_run = False
 render_images = True
 
 
-# In[ ]:
+# In[3]:
 
 
 # Optional CLI fallback for direct script-style execution.
@@ -67,7 +68,7 @@ render_images = args.render_images
 
 # ## Set paths and variables
 
-# In[ ]:
+# In[4]:
 
 
 # Set data directories
@@ -97,7 +98,7 @@ qc_fig_dir.mkdir(exist_ok=True)
 
 # ## Load in plate to perform QC on
 
-# In[4]:
+# In[5]:
 
 
 if not plate_name:
@@ -134,7 +135,7 @@ print(plate_df.shape)
 plate_df.head()
 
 
-# In[5]:
+# In[6]:
 
 
 # set compartment for segmentation mask
@@ -159,7 +160,7 @@ metadata_columns = [
 ]
 
 
-# In[6]:
+# In[7]:
 
 
 # create an outline and orig mapping dictionary to map original images to outlines
@@ -192,7 +193,7 @@ next(iter(outline_to_orig_mapping.items()))
 
 # ## Oversegmented nuclei
 
-# In[ ]:
+# In[8]:
 
 
 if plate_name == "CARD-CelIns-CX7_260407120001":
@@ -234,10 +235,12 @@ if render_images:
     ]
 
     print(oversegmented_nuclei_outliers_cdf.shape)
-    oversegmented_nuclei_outliers_cdf.sort_values(
-        by="Nuclei_AreaShape_Compactness", ascending=False
-    ).head(5).T
-    # oversegmented_nuclei_outliers_cdf.sample(n=5).T
+    display(
+        oversegmented_nuclei_outliers_cdf.sort_values(
+            by="Nuclei_AreaShape_Compactness", ascending=False
+        ).head(5).T
+    )
+    # display(oversegmented_nuclei_outliers_cdf.sample(n=5).T)
 else:
     print(
         f"{len(oversegmented_nuclei_outliers)} oversegmented nuclei outliers found "
@@ -245,7 +248,7 @@ else:
     )
 
 
-# In[ ]:
+# In[9]:
 
 
 # find non-round nuclei (poorly segmented)
@@ -278,10 +281,12 @@ if render_images:
     ]
 
     print(poorly_segmented_outliers_cdf.shape)
-    poorly_segmented_outliers_cdf.sort_values(
-        by="Nuclei_AreaShape_Solidity", ascending=True
-    ).head(5).T
-    # poorly_segmented_outliers_cdf.sample(n=5).T
+    display(
+        poorly_segmented_outliers_cdf.sort_values(
+            by="Nuclei_AreaShape_Solidity", ascending=True
+        ).head(5).T
+    )
+    # display(poorly_segmented_outliers_cdf.sample(n=5).T)
 else:
     print(
         f"{len(poorly_segmented_outliers)} poorly segmented nuclei outliers found "
@@ -291,7 +296,7 @@ else:
 
 # ### Scatterplot of mass displacement to compactness
 
-# In[9]:
+# In[10]:
 
 
 # Set the default value to 'inlier'
@@ -335,7 +340,7 @@ plt.show()
 
 # ## Mis-segmented cells due to high confluence (segmentation for cells around the nuclei)
 
-# In[10]:
+# In[11]:
 
 
 # set compartment for segmentation mask
@@ -360,7 +365,7 @@ metadata_columns = [
 ]
 
 
-# In[11]:
+# In[12]:
 
 
 # create an outline and orig mapping dictionary to map original images to outlines
@@ -391,7 +396,7 @@ for record in plate_df[
 next(iter(outline_to_orig_mapping.items()))
 
 
-# In[ ]:
+# In[13]:
 
 
 # find under-segmented cells (small cells)
@@ -424,10 +429,12 @@ if render_images:
     ]
 
     print(small_cells_outliers_cdf.shape)
-    small_cells_outliers_cdf.sort_values(
-        by="Cells_AreaShape_Area", ascending=False
-    ).head(5).T
-    # small_cells_outliers_cdf.sample(n=5).T
+    display(
+        small_cells_outliers_cdf.sort_values(
+            by="Cells_AreaShape_Area", ascending=False
+        ).head(5).T
+    )
+    # display(small_cells_outliers_cdf.sample(n=5).T)
 else:
     print(
         f"{len(small_cells_outliers)} small cell outliers found "
@@ -435,7 +442,7 @@ else:
     )
 
 
-# In[13]:
+# In[14]:
 
 
 # Set default value
@@ -483,7 +490,7 @@ plt.show()
 # 
 # We decided to use texture in the nucleus (nucleus compartment) and actin (cells compartment) to identify out-of-focus cells as it is expected that the pixel intensities will be homogenous across the cell (lack of texture).
 
-# In[ ]:
+# In[15]:
 
 
 # find blurry cells
@@ -519,10 +526,12 @@ if render_images:
     ]
 
     print(blurry_cells_outliers_cdf.shape)
-    # blurry_cells_outliers_cdf.sort_values(
-    #     by="Cells_Texture_InfoMeas1_Actin_3_02_256", ascending=False
-    # ).head(5).T
-    blurry_cells_outliers_cdf.sample(n=5).T
+    # display(
+    #     blurry_cells_outliers_cdf.sort_values(
+    #         by="Cells_Texture_InfoMeas1_Actin_3_02_256", ascending=False
+    #     ).head(5).T
+    # )
+    display(blurry_cells_outliers_cdf.sample(n=5).T)
 else:
     print(
         f"{len(blurry_cells_outliers)} blurry cell outliers found "
@@ -530,7 +539,7 @@ else:
     )
 
 
-# In[15]:
+# In[16]:
 
 
 # Set the default value to 'inlier'
@@ -572,7 +581,7 @@ plt.show()
 
 # ## Remove all outliers and save cleaned data frame
 
-# In[16]:
+# In[17]:
 
 
 # Collect unique outlier indices from all known outlier dataframes in the notebook
@@ -645,7 +654,7 @@ print(plate_df_cleaned.shape)
 plate_df_cleaned.head()
 
 
-# In[17]:
+# In[18]:
 
 
 # Compute overall and per-well QC failure rates using outlier_indices
@@ -709,7 +718,7 @@ plate_qc_summary = {
 # 
 # We save one combined CSV summarizing, per plate, the percentage of single-cells that failed each QC condition and the overall percentage failed. Each run of this notebook overwrites only the row(s) for the current `plate`, so re-running QC for one plate does not affect the summary rows for other plates.
 
-# In[ ]:
+# In[19]:
 
 
 total_cells = len(plate_df)

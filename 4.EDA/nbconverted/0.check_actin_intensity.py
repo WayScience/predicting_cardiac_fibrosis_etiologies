@@ -4,14 +4,18 @@
 # # Check actin intensity distribution
 # 
 # Load the QC-normalized single-cell profiles and compare the distribution of actin intensity between cells labeled `Healthy` and `Failing`.
+# Set `hlhs_run = True` to use the HLHS plates instead of the default subtyping plates.
 
 # In[1]:
 
 
-import pandas as pd
+import argparse
+import sys
 from pathlib import Path
-import seaborn as sns
+
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 plt.rcParams.update({"figure.figsize": (8, 5), "figure.dpi": 100})
 sns.set_style("whitegrid")
@@ -20,10 +24,33 @@ sns.set_style("whitegrid")
 # In[2]:
 
 
-# Load QC-normalized single-cell parquet files for both plates
+# Set if this run is for the HLHS plates (will be updated by papermill)
+hlhs_run = True
+
+
+# Optional CLI fallback for direct script-style execution.
+def _str_to_bool(value):
+    return str(value).strip().lower() in ("1", "true", "yes")
+
+
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument(
+    "--hlhs-run", dest="hlhs_run", type=_str_to_bool, default=hlhs_run
+)
+args, _ = parser.parse_known_args(sys.argv[1:])
+hlhs_run = args.hlhs_run
+
+
+# In[3]:
+
+
+# Load QC-normalized single-cell parquet files for all plates in the run
 data_dir = (
     Path("..") / "3.preprocessing_profiles" / "data" / "single_cell_profiles"
 )  # notebook is in 4.EDA
+if hlhs_run:
+    # HLHS plates are in a subfolder of the default subtyping plates
+    data_dir = data_dir / "hlhs"
 sc_paths = sorted(data_dir.glob("*_sc_normalized.parquet"))
 
 if not sc_paths:
@@ -39,7 +66,7 @@ df = pd.concat(dfs, ignore_index=True)
 print(f"Loaded rows: {len(df)} (from {len(dfs)} file(s))")
 
 
-# In[3]:
+# In[4]:
 
 
 # Preferred columns
@@ -91,8 +118,13 @@ if df_subset.empty:
 df_subset[actin_col] = pd.to_numeric(df_subset[actin_col], errors="coerce")
 df_subset = df_subset.dropna(subset=[actin_col])
 
+# Show healthy hearts as non-failing in the plot
+df_subset[metadata_col] = (
+    df_subset[metadata_col].str.title().replace({"Healthy": "Non-failing"})
+)
+
 # Plot with filled KDE + histogram
-palette = {"Healthy": "#2b8cbe", "Failing": "#f03b20"}
+palette = {"Non-failing": "#2b8cbe", "Failing": "#f03b20"}
 
 g = sns.displot(
     data=df_subset,
@@ -122,7 +154,7 @@ for ax in g.axes.flatten():
 
 # Labels and title
 g.set_axis_labels(f"Actin intensity ({actin_col})", "Density")
-g.fig.suptitle("Actin intensity distribution: Healthy vs Failing (by plate)", y=1.02)
+g.fig.suptitle("Actin intensity distribution: Non-failing vs Failing (by plate)", y=1.02)
 
 # Add dashed vertical mean lines per plate and cell type
 means = df_subset.groupby([plate_col, metadata_col])[actin_col].mean().unstack()
@@ -140,7 +172,10 @@ plt.tight_layout()
 # Save plot
 output_plot_dir = Path("figures")
 output_plot_dir.mkdir(parents=True, exist_ok=True)
-output_plot_path = output_plot_dir / "actin_intensity_healthy_vs_failing_by_plate.png"
+plot_suffix = "_hlhs" if hlhs_run else ""
+output_plot_path = (
+    output_plot_dir / f"actin_intensity_healthy_vs_failing_by_plate{plot_suffix}.png"
+)
 g.fig.savefig(output_plot_path, bbox_inches="tight", dpi=150)
 print("Plot saved to:", output_plot_path)
 
@@ -148,16 +183,10 @@ plt.show()
 
 # Optional summary: per-plate, per-cell-type stats
 summary = (
-    df_subset.groupby([plate_col, df_subset[metadata_col].str.title()])[actin_col]
+    df_subset.groupby([plate_col, metadata_col])[actin_col]
     .agg(["count", "mean", "median", "std"])
     .rename_axis([plate_col, metadata_col])
 )
 print("\nSummary statistics (by plate and cell type):")
 print(summary)
-
-
-# In[ ]:
-
-
-
 

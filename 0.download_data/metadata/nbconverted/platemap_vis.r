@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library(platetools))
 
 
 # Order of the heart failure subtypes, consistent across all platemaps
-heart_failure_type_order <- c("Healthy", "DCM", "ICM", "HLHS")
+heart_failure_type_order <- c("Non-failing", "DCM", "ICM", "HLHS")
 
 # Plot a 96-well platemap where the well color shows the heart failure subtype
 # and the label (well_label column) is shown inside each well
@@ -114,8 +114,9 @@ for (plate in names(output_platemap_files)) {
     col_types = readr::cols(.default = "c")
 )
 
-    # for plotting replace NaN as "healthy" for heart failure type
-    df$heart_failure_type[is.na(df$heart_failure_type)] <- "Healthy"
+    # for plotting replace NaN as "Non-failing" for heart failure type and show healthy hearts as non-failing
+    df$heart_failure_type[is.na(df$heart_failure_type)] <- "Non-failing"
+    df$cell_type[df$cell_type == "Healthy"] <- "Non-failing"
 
 
     platemap_dfs[[plate]] <- df 
@@ -126,7 +127,7 @@ print(platemap_dfs)
 
 # Consistent color mapping for heart failure subtype across all platemaps
 heart_failure_type_colors <- c(
-    "Healthy" = "#009E73",  # green (Okabe-Ito palette)
+    "Non-failing" = "#009E73",  # green (Okabe-Ito palette)
     "DCM" = "#D55E00",      # vermillion
     "ICM" = "#0072B2",      # blue
     "HLHS" = "#CC79A7"      # pink-purple

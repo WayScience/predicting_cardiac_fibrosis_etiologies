@@ -116,7 +116,7 @@ platemap_df.head()
 # 3. Normalize the wells to all wells on the plate
 # 4. Feature select (including dropping features with extreme normalized values)
 
-# In[ ]:
+# In[5]:
 
 
 for plate, sc_annotated_path in plate_info_dictionary.items():
@@ -190,7 +190,7 @@ for plate, sc_annotated_path in plate_info_dictionary.items():
 
 # ## Check the output files
 
-# In[ ]:
+# In[6]:
 
 
 bulk_summary = []
@@ -224,7 +224,7 @@ for plate in plate_info_dictionary:
 pd.DataFrame(bulk_summary)
 
 
-# In[ ]:
+# In[7]:
 
 
 # Check the metadata of the final well-level profiles for the last plate

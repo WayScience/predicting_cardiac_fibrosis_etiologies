@@ -16,6 +16,14 @@ if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
 }
 
+# Colorblind-friendly palette for the heart failure types (same as the UMAPs in 4.EDA)
+heart_type_colors <- c(
+    "Non-failing" = "#009E73",
+    "DCM" = "#0072B2",
+    "ICM" = "#E69F00",
+    "HLHS" = "#CC79A7"
+)
+
 
 pr_results <- read_parquet(file.path("performance_metrics", plate_to_process, "all_models_pr_curve_results.parquet"))
 
@@ -61,6 +69,30 @@ all_models_pr_curves
 
 probability_results <- read_parquet(file.path("performance_metrics", plate_to_process, "all_models_predicted_probabilities.parquet"))
 
+# Show healthy hearts as non-failing in the plots
+probability_results$actual_label[probability_results$actual_label == "Healthy"] <- "Non-failing"
+
+# Look up the heart type of each heart from the multi-class labels so failing cells can be colored by subtype
+label_mapping <- read.csv(file.path("performance_metrics", plate_to_process, "multi_class_label_mapping.csv"))
+heart_type_lookup <- read_parquet(file.path("performance_metrics", plate_to_process, "multi_class_cell_probabilities.parquet")) %>%
+    distinct(Metadata_heart_number, true_label) %>%
+    mutate(
+        heart_key = as.character(Metadata_heart_number),
+        heart_type = label_mapping$class_label[match(true_label, label_mapping$encoded_label)],
+        heart_type = ifelse(heart_type == "Healthy", "Non-failing", heart_type)
+    ) %>%
+    select(heart_key, heart_type)
+
+probability_results <- probability_results %>%
+    # Join on heart number as a string (some plates use letters) without changing the original column
+    mutate(heart_key = as.character(Metadata_heart_number)) %>%
+    left_join(heart_type_lookup, by = "heart_key") %>%
+    select(-heart_key) %>%
+    # Order the heart types with Non-failing first, then the failing subtypes
+    mutate(heart_type = factor(heart_type, levels = intersect(names(heart_type_colors), unique(heart_type))))
+
+stopifnot(!any(is.na(probability_results$heart_type)))
+
 head(probability_results)
 
 
@@ -80,12 +112,12 @@ height <- 8
 width <- 16
 options(repr.plot.width = width, repr.plot.height = height)
 
-ridge_plot_test <- ggplot(test_performance_df, aes(x = predicted_probability, y = actual_label, fill = actual_label)) +
-  geom_density_ridges( alpha = 0.7, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
-  scale_fill_brewer(palette = "Dark2") +  # Color by heart type
+ridge_plot_test <- ggplot(test_performance_df, aes(x = predicted_probability, y = heart_type, fill = heart_type)) +
+  geom_density_ridges(alpha = 1, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
+  scale_fill_manual(values = heart_type_colors) +  # Color by heart type
   scale_x_continuous(breaks = seq(0, 1, 0.5)) +
   facet_grid(model_type ~ model_name, scales = "free_y") + 
-  labs(x = "Probability of healthy prediction", y = "Heart Type") +  # Update x-axis label
+  labs(x = "Probability of non-failing prediction", y = "Heart Type") +  # Update x-axis label
   theme_bw() +
   theme(
     legend.position = "none",
@@ -112,12 +144,12 @@ height <- 8
 width <- 16
 options(repr.plot.width = width, repr.plot.height = height)
 
-ridge_plot_test <- ggplot(test_performance_df, aes(x = predicted_probability, y = factor(Metadata_heart_number), fill = actual_label)) +
-  geom_density_ridges( alpha = 0.7, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
-  scale_fill_brewer(palette = "Dark2") +  # Color by heart type
+ridge_plot_test <- ggplot(test_performance_df, aes(x = predicted_probability, y = factor(Metadata_heart_number), fill = heart_type)) +
+  geom_density_ridges(alpha = 1, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
+  scale_fill_manual(values = heart_type_colors) +  # Color by heart type
   scale_x_continuous(breaks = seq(0, 1, 0.5)) +
   facet_grid(model_type ~ model_name, scales = "free_y") + 
-  labs(x = "Probability of healthy prediction", y = "Heart Number") +  # Updated y-axis label
+  labs(x = "Probability of non-failing prediction", y = "Heart Number") +  # Updated y-axis label
   theme_bw() +
   theme(
     legend.position = "none",
@@ -144,7 +176,7 @@ head(probability_results)
 accuracy_per_heart <- probability_results %>%
     mutate(
     predicted_binary = ifelse(predicted_probability >= 0.5, 1L, 0L),
-    actual_binary = as.integer(actual_label == "Healthy")
+    actual_binary = as.integer(actual_label == "Non-failing")
 ) %>%
     group_by(model_name, model_type, dataset, Metadata_heart_number) %>%
     summarize(
@@ -196,6 +228,8 @@ head(multi_class_pr_results)
 # Define mapping from integer → string (from the multi-class label encoder in 1.train_models)
 label_mapping <- read.csv(file.path("performance_metrics", plate_to_process, "multi_class_label_mapping.csv"))
 class_label <- setNames(label_mapping$class_label, as.character(label_mapping$encoded_label))
+# Show healthy hearts as non-failing in the plots
+class_label[class_label == "Healthy"] <- "Non-failing"
 
 # Update multi_class_pr_results if it exists
 if (exists("multi_class_pr_results") && "class_label" %in% names(multi_class_pr_results)) {
@@ -286,8 +320,8 @@ accuracy_barplot
 # Load in the predicted probabilities per single cell for the multi-class model
 multi_class_probability_results <- read_parquet(file.path("performance_metrics", plate_to_process, "multi_class_cell_probabilities.parquet"))
 
-# Order of the subtypes for plotting (Healthy first, then the failing subtypes)
-subtype_order <- c("Healthy", sort(setdiff(class_label, "Healthy")))
+# Order of the subtypes for plotting (Non-failing first, then the failing subtypes)
+subtype_order <- c("Non-failing", sort(setdiff(class_label, "Non-failing")))
 
 # Reshape to one row per single cell and subtype probability, and map the encoded labels to subtypes
 multi_class_test_probabilities <- multi_class_probability_results %>%
@@ -313,8 +347,8 @@ width <- 16
 options(repr.plot.width = width, repr.plot.height = height)
 
 multi_class_ridge_plot_test <- ggplot(multi_class_test_probabilities, aes(x = predicted_probability, y = true_label, fill = true_label)) +
-  geom_density_ridges(alpha = 0.7, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
-  scale_fill_brewer(palette = "Dark2") +  # Color by heart type
+  geom_density_ridges(alpha = 1, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
+  scale_fill_manual(values = heart_type_colors) +  # Color by heart type
   scale_x_continuous(breaks = seq(0, 1, 0.5)) +
   facet_grid(model_type ~ predicted_class, scales = "free_y") +
   labs(x = "Predicted probability", y = "Heart Type") +
@@ -350,8 +384,8 @@ multi_class_ridge_plot_per_heart <- ggplot(
     multi_class_test_probabilities,
     aes(x = predicted_probability, y = factor(Metadata_heart_number, levels = heart_order), fill = true_label)
 ) +
-  geom_density_ridges(alpha = 0.7, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
-  scale_fill_brewer(palette = "Dark2") +  # Color by heart type
+  geom_density_ridges(alpha = 1, scale = 2, rel_min_height = 0.01, bandwidth = 0.1) +
+  scale_fill_manual(values = heart_type_colors) +  # Color by heart type
   scale_x_continuous(breaks = seq(0, 1, 0.5)) +
   facet_grid(model_type ~ predicted_class, scales = "free_y") +
   labs(x = "Predicted probability", y = "Heart Number", fill = "Heart Type") +

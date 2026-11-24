@@ -9,7 +9,7 @@
 
 # ## Import libraries
 
-# In[ ]:
+# In[1]:
 
 
 import argparse
@@ -24,7 +24,7 @@ from pycytominer.cyto_utils import infer_cp_features
 
 # ## Papermill parameters
 
-# In[ ]:
+# In[2]:
 
 
 # Set if this run is for the HLHS dataset (will be updated by papermill)
@@ -46,7 +46,7 @@ hlhs_run = args.hlhs_run
 
 # ## Set paths and variables
 
-# In[ ]:
+# In[3]:
 
 
 # Path to directories
@@ -100,7 +100,7 @@ pprint.pprint(plate_info_dictionary, indent=4)
 # 
 # Only `NA` is read as missing so the `None` treatment is kept as a string (the same as in the single-cell profiles), and healthy hearts have a missing heart failure type.
 
-# In[ ]:
+# In[4]:
 
 
 platemap_df = pd.read_csv(platemap_path, keep_default_na=False, na_values=["NA"])

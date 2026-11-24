@@ -3,18 +3,14 @@ suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(platetools))
 
 
-# Shape (filled) for each heart failure subtype, consistent across all platemaps
-heart_failure_type_shapes <- c("Healthy" = 21, "DCM" = 22, "ICM" = 23, "HLHS" = 24)
-# Squares, diamonds, and triangles are scaled to look the same size as circles
-heart_failure_type_sizes <- c("Healthy" = 16.5, "DCM" = 15, "ICM" = 13.5, "HLHS" = 11.5)
-# Sizes of the shapes in the legend so they look the same size as each other
-heart_failure_type_legend_sizes <- c("Healthy" = 6, "DCM" = 5.4, "ICM" = 4.4, "HLHS" = 3.8)
+# Order of the heart failure subtypes, consistent across all platemaps
+heart_failure_type_order <- c("Healthy", "DCM", "ICM", "HLHS")
 
-# Plot a 96-well platemap where the well shape and color show the heart failure subtype
+# Plot a 96-well platemap where the well color shows the heart failure subtype
 # and the label (well_label column) is shown inside each well
 plot_heart_number_platemap <- function(platemap_df, plate, colors, caption) {
     # Only keep the subtypes on this plate (in a consistent order)
-    subtypes <- intersect(names(heart_failure_type_shapes), unique(platemap_df$heart_failure_type))
+    subtypes <- intersect(heart_failure_type_order, unique(platemap_df$heart_failure_type))
 
     platemap_df <- platemap_df %>%
         dplyr::mutate(
@@ -43,10 +39,10 @@ plot_heart_number_platemap <- function(platemap_df, plate, colors, caption) {
             aes(
                 x = well_col,
                 y = well_row,
-                fill = heart_failure_type,
-                shape = heart_failure_type,
-                size = heart_failure_type
+                fill = heart_failure_type
             ),
+            shape = 21,
+            size = 16.5,
             color = "#4d4d4b",
             stroke = 0.6
         ) +
@@ -58,8 +54,6 @@ plot_heart_number_platemap <- function(platemap_df, plate, colors, caption) {
             size = 3.6
         ) +
         scale_fill_manual(name = "Heart failure subtype", values = colors[subtypes]) +
-        scale_shape_manual(name = "Heart failure subtype", values = heart_failure_type_shapes[subtypes]) +
-        scale_size_manual(name = "Heart failure subtype", values = heart_failure_type_sizes[subtypes]) +
         scale_x_continuous(breaks = 1:12, position = "top", limits = c(0.5, 12.5), expand = c(0, 0)) +
         scale_y_discrete(expand = expansion(add = 0.6), drop = FALSE) +
         coord_fixed() +
@@ -82,11 +76,7 @@ plot_heart_number_platemap <- function(platemap_df, plate, colors, caption) {
             legend.text = element_text(size = 11),
             legend.key.height = unit(0.9, "cm")
         ) +
-        guides(
-            # Draw the legend shapes at the same size as each other
-            size = "none",
-            fill = guide_legend(override.aes = list(size = unname(heart_failure_type_legend_sizes[subtypes])))
-        )
+        guides(fill = guide_legend(override.aes = list(size = 6)))
 }
 
 platemap_dir <- file.path("platemaps")
@@ -181,7 +171,7 @@ for (plate in names(platemap_dfs)) {
 }
 
 
-# Platemap with the well shape showing the heart failure subtype and the heart number in each well
+# Platemap with the well color showing the heart failure subtype and the heart number in each well
 plate <- "nf_heart_failure_subtypes"
 
 # Female hearts (all other hearts are male)
@@ -209,7 +199,7 @@ ggsave(
 
 heart_number_platemap
 
-# Platemap with the well shape showing the heart failure subtype and the heart number in each well
+# Platemap with the well color showing the heart failure subtype and the heart number in each well
 plate <- "hlhs_heart_failure_subtypes"
 
 # Label with the heart number (HLHS hearts are labeled with letters)
